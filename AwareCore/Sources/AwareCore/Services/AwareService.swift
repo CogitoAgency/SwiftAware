@@ -536,6 +536,22 @@ public final class Aware: ObservableObject {
         isContainer: Bool = false,
         parentId: String? = nil
     ) {
+        // Input validation
+        guard !id.isEmpty else {
+            AwareError.invalidViewId(id).log()
+            return
+        }
+
+        if let existing = viewRegistry[id], existing.label != label {
+            AwareError.viewAlreadyExists(viewId: id, existingLabel: existing.label, newLabel: label).log()
+            return
+        }
+
+        if let parentId = parentId, viewRegistry[parentId] == nil {
+            AwareError.parentViewNotFound(parentId: parentId, childId: id).log()
+            return
+        }
+
         if viewRegistry[id] == nil {
             viewRegistry[id] = AwareViewSnapshot(
                 id: id,
@@ -595,6 +611,17 @@ public final class Aware: ObservableObject {
 
     /// Register state value
     public func registerState(_ viewId: String, key: String, value: String) {
+        // Input validation
+        guard viewRegistry[viewId] != nil else {
+            AwareError.stateNotFound(viewId: viewId, key: key).log()
+            return
+        }
+
+        guard !key.isEmpty else {
+            AwareError.stateRegistrationFailed(reason: "Empty state key", viewId: viewId, key: key).log()
+            return
+        }
+
         if stateRegistry[viewId] == nil {
             stateRegistry[viewId] = [:]
         }
@@ -771,7 +798,16 @@ public final class Aware: ObservableObject {
     // MARK: - Snapshot Generation
 
     /// Generate full UI snapshot
-    public func captureSnapshot(format: AwareSnapshotFormat = .text, includeHidden: Bool = false, maxDepth: Int = 10) -> AwareSnapshotResult {
+    public func captureSnapshot(format: AwareSnapshotFormat = .text, includeHidden: Bool = false, maxDepth: Int = 10, includeGitContext: Bool = false) -> AwareSnapshotResult {
+        // Input validation
+        guard maxDepth > 0 && maxDepth <= 50 else {
+            AwareError.invalidConfiguration(reason: "Invalid maxDepth: \(maxDepth) (must be 1-50)", key: "maxDepth").log()
+            return AwareSnapshotResult(
+                format: format,
+                content: "Error: Invalid maxDepth parameter",
+                viewCount: 0
+            )
+        }
         let visibleViews = includeHidden
             ? viewRegistry
             : viewRegistry.filter { $0.value.isVisible }
