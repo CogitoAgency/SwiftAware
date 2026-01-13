@@ -4,7 +4,8 @@ import PackageDescription
 let package = Package(
     name: "AwareiOS",
     platforms: [
-        .iOS(.v17)
+        .iOS(.v17),
+        .macOS(.v14)  // Required for building on macOS host
     ],
     products: [
         .library(
