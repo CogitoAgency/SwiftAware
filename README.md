@@ -6,7 +6,7 @@
 [![Platform](https://img.shields.io/badge/Platform-iOS%20%7C%20macOS%20%7C%20Web%20%7C%20Backend-blue.svg)](https://developer.apple.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-> **Repository:** [github.com/adrian-mei/AetherCore](https://github.com/adrian-mei/AetherCore) (will be renamed to "Aware")
+> **Repository:** [github.com/adrian-mei/Aware](https://github.com/adrian-mei/Aware)
 >
 > **Monorepo Structure:** Independent packages for iOS, macOS, Web, and Backend with shared core
 
@@ -53,7 +53,7 @@ Add Aware to your Swift package dependencies:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/adrian-mei/AetherCore", from: "2.1.0")
+    .package(url: "https://github.com/adrian-mei/Aware", from: "2.1.0")
 ]
 ```
 
@@ -61,12 +61,12 @@ Or for specific platforms:
 
 ```swift
 // iOS only
-.package(url: "https://github.com/adrian-mei/AetherCore", from: "2.1.0"),
-targets: [.target(name: "MyApp", dependencies: [.product(name: "AwareiOS", package: "AetherCore")])]
+.package(url: "https://github.com/adrian-mei/Aware", from: "2.1.0"),
+targets: [.target(name: "MyApp", dependencies: [.product(name: "AwareiOS", package: "Aware")])]
 
 // macOS only
-.package(url: "https://github.com/adrian-mei/AetherCore", from: "2.0.3"),
-targets: [.target(name: "MyApp", dependencies: [.product(name: "AwareMacOS", package: "AetherCore")])]
+.package(url: "https://github.com/adrian-mei/Aware", from: "2.0.3"),
+targets: [.target(name: "MyApp", dependencies: [.product(name: "AwareMacOS", package: "Aware")])]
 ```
 
 ### Basic Usage
@@ -233,7 +233,7 @@ Instant parallel feedback across all platforms
 
 ## Links
 
-- [GitHub Repository](https://github.com/adrian-mei/AetherCore) (will be renamed to "Aware")
+- [GitHub Repository](https://github.com/adrian-mei/Aware)
 - [Documentation](CLAUDE.md)
 - [Implementation Plan](/Users/adrian/.claude/plans/peppy-weaving-panda.md) (10-week roadmap)
 - [Breathe IDE](https://breathe.cogito.cv)
