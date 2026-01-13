@@ -28,6 +28,7 @@ public final class AwareIOSPlatform: AwarePlatform {
 
     private var actionCallbacks: [String: @Sendable @MainActor () async -> Void] = [:]
     private var gestureCallbacks: [String: [String: () async -> Void]] = [:]
+    private var textBindings: [String: Binding<String>] = [:]
     private var ipcService: AwareIPCService?
     private var isConfigured = false
 
@@ -120,8 +121,22 @@ public final class AwareIOSPlatform: AwarePlatform {
             return AwareInputResult(success: false, message: "Swipe/scroll not yet implemented on iOS")
 
         case .type:
-            // TODO: Implement text input simulation via textBindings
-            return AwareInputResult(success: false, message: "Text input simulation not yet implemented")
+            // Implement text input simulation via textBindings
+            guard let text = command.parameters["text"] else {
+                return AwareInputResult(success: false, message: "Missing 'text' parameter")
+            }
+
+            guard let binding = textBindings[command.target] else {
+                return AwareInputResult(success: false, message: "No text binding registered for '\(command.target)'")
+            }
+
+            // Update the binding
+            binding.wrappedValue = text
+
+            return AwareInputResult(
+                success: true,
+                message: "Typed '\(text)' into '\(command.target)'"
+            )
 
         default:
             return AwareInputResult(success: false, message: "Unsupported input type: \(command.type.rawValue)")
@@ -140,11 +155,45 @@ public final class AwareIOSPlatform: AwarePlatform {
         return snapshot
     }
 
+    // MARK: - Text Input Support
+
+    /// Register a text binding for typeText support
+    public func registerTextBinding(_ viewId: String, binding: Binding<String>) {
+        textBindings[viewId] = binding
+
+        #if DEBUG
+        print("AwareIOS: Registered text binding for view: \(viewId)")
+        #endif
+    }
+
+    /// Type text into a registered text field
+    public func typeText(_ viewId: String, text: String) async -> Bool {
+        guard let binding = textBindings[viewId] else {
+            #if DEBUG
+            print("AwareIOS: No text binding registered for view: \(viewId)")
+            #endif
+            return false
+        }
+
+        binding.wrappedValue = text
+
+        #if DEBUG
+        print("AwareIOS: Typed '\(text)' into view: \(viewId)")
+        #endif
+
+        return true
+    }
+
     // MARK: - Convenience
 
     /// Get registered view IDs with action callbacks
     public var actionableViewIds: [String] {
         Array(actionCallbacks.keys)
+    }
+
+    /// Get registered view IDs with text bindings
+    public var textInputViewIds: [String] {
+        Array(textBindings.keys)
     }
 }
 
