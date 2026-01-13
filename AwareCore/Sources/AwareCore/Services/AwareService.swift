@@ -36,6 +36,9 @@ public final class Aware: ObservableObject {
     /// Parent-child relationships
     private var parentChildMap: [String: String] = [:]  // childId -> parentId
 
+    /// Registry version - incremented on any structural change
+    private var registryVersion: Int = 0
+
     // MARK: - Prop-State Consistency Tracking (Stale @State Detection)
 
     /// Tracks prop → state bindings for staleness detection
@@ -573,12 +576,14 @@ public final class Aware: ObservableObject {
             }
         }
 
+        registryVersion += 1
         scheduleSnapshotWrite()
     }
 
     /// Unregister a view (mark as not visible)
     public func unregisterView(_ id: String) {
         viewRegistry[id]?.isVisible = false
+        registryVersion += 1
         scheduleSnapshotWrite()
     }
 
@@ -626,6 +631,7 @@ public final class Aware: ObservableObject {
             stateRegistry[viewId] = [:]
         }
         stateRegistry[viewId]?[key] = value
+        registryVersion += 1
         scheduleSnapshotWrite()
     }
 
@@ -816,7 +822,7 @@ public final class Aware: ObservableObject {
         let rootNodes = buildViewTree(from: visibleViews, maxDepth: maxDepth)
 
         // Check cache first
-        let cacheKey = "\(format.rawValue)-\(includeHidden)-\(maxDepth)-\(compression)"
+        let cacheKey = "\(format.rawValue)-\(includeHidden)-\(maxDepth)-\(compression)-v\(registryVersion)"
         if let cachedContent = AwareCache.shared.getCachedSnapshot(cacheKey) {
             return AwareSnapshotResult(
                 format: format,
@@ -953,6 +959,7 @@ public final class Aware: ObservableObject {
         gestureCallbacks.removeAll()
         parameterizedGestureCallbacks.removeAll()
         textBindings.removeAll()
+        registryVersion = 0
     }
 
     // MARK: - iOS Gesture Execution
@@ -1305,14 +1312,14 @@ public final class Aware: ObservableObject {
     public func findByText(_ text: String) -> [AwareViewSnapshot] {
         let lowered = text.lowercased()
         return viewRegistry.values.filter {
-            $0.visual?.text?.lowercased().contains(lowered) == true
+            $0.isVisible && $0.visual?.text?.lowercased().contains(lowered) == true
         }
     }
 
     /// Find elements by state key-value
     public func findByState(key: String, value: String) -> [AwareViewSnapshot] {
         viewRegistry.values.filter { snapshot in
-            stateRegistry[snapshot.id]?[key] == value
+            snapshot.isVisible && stateRegistry[snapshot.id]?[key] == value
         }
     }
 
@@ -1333,7 +1340,8 @@ public final class Aware: ObservableObject {
 
     /// Query builder for chainable element finding
     public func query() -> AwareElementQuery {
-        AwareElementQuery(snapshots: Array(viewRegistry.values), stateRegistry: stateRegistry)
+        let visibleSnapshots = viewRegistry.values.filter { $0.isVisible }
+        return AwareElementQuery(snapshots: Array(visibleSnapshots), stateRegistry: stateRegistry)
     }
 
     // MARK: - Assertions

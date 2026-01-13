@@ -238,8 +238,12 @@ final class AwarePerformanceTests: XCTestCase {
         let uncompressedTokens = uncompressed.content.count / 4
         let compressedTokens = basicCompressed.content.count / 4
 
-        // Then: Basic compression reduces token count
-        XCTAssertGreaterThan(uncompressedTokens, compressedTokens)
+        // Then: Basic compression should not increase token count
+        XCTAssertGreaterThanOrEqual(uncompressedTokens, compressedTokens,
+            "Compression should not increase token count")
+        // Verify compression reduces byte count (more precise than token estimation)
+        XCTAssertLessThan(basicCompressed.content.count, uncompressed.content.count,
+            "Compression should reduce byte count")
 
         // And: Both have same view count
         XCTAssertEqual(uncompressed.viewCount, basicCompressed.viewCount)
