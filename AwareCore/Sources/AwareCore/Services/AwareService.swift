@@ -798,7 +798,7 @@ public final class Aware: ObservableObject {
     // MARK: - Snapshot Generation
 
     /// Generate full UI snapshot
-    public func captureSnapshot(format: AwareSnapshotFormat = .text, includeHidden: Bool = false, maxDepth: Int = 10, includeGitContext: Bool = false) -> AwareSnapshotResult {
+    public func captureSnapshot(format: AwareSnapshotFormat = .text, includeHidden: Bool = false, maxDepth: Int = 10, compression: CompressionStrategy = .basic) -> AwareSnapshotResult {
         // Input validation
         guard maxDepth > 0 && maxDepth <= 50 else {
             AwareError.invalidConfiguration(reason: "Invalid maxDepth: \(maxDepth) (must be 1-50)", key: "maxDepth").log()
@@ -815,19 +815,39 @@ public final class Aware: ObservableObject {
         // Build tree structure
         let rootNodes = buildViewTree(from: visibleViews, maxDepth: maxDepth)
 
+        // Check cache first
+        let cacheKey = "\(format.rawValue)-\(includeHidden)-\(maxDepth)-\(compression)"
+        if let cachedContent = AwareCache.shared.getCachedSnapshot(cacheKey) {
+            return AwareSnapshotResult(
+                format: format,
+                content: cachedContent,
+                viewCount: visibleViews.count
+            )
+        }
+
         // Format output
         let renderer = AwareSnapshotRenderer(visibleViewCount: visibleViews.count)
-        let content: String
+        let uncompressedContent: String
         switch format {
         case .text:
-            content = renderer.renderAsText(rootNodes)
+            uncompressedContent = renderer.renderAsText(rootNodes)
         case .json:
-            content = renderer.renderAsJSON(rootNodes)
+            uncompressedContent = renderer.renderAsJSON(rootNodes)
         case .markdown:
-            content = renderer.renderAsMarkdown(rootNodes)
+            uncompressedContent = renderer.renderAsMarkdown(rootNodes)
         case .compact:
-            content = renderer.renderAsCompact(rootNodes)
+            uncompressedContent = renderer.renderAsCompact(rootNodes)
         }
+
+        // Apply compression
+        let content = AwareCompressionEngine.shared.compress(
+            content: uncompressedContent,
+            format: format,
+            strategy: compression
+        )
+
+        // Cache the result
+        AwareCache.shared.cacheSnapshot(cacheKey, content: content)
 
         return AwareSnapshotResult(
             format: format,

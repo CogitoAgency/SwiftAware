@@ -108,16 +108,14 @@ public extension AwareRecoveryManager {
     func generateSnapshot(
         format: AwareSnapshotFormat = .compact,
         includeHidden: Bool = false,
-        maxDepth: Int = 10,
-        includeGitContext: Bool = false
+        maxDepth: Int = 10
     ) async -> AwareSnapshotResult {
         do {
             return try await withRetry {
                 Aware.shared.captureSnapshot(
                     format: format,
                     includeHidden: includeHidden,
-                    maxDepth: maxDepth,
-                    includeGitContext: includeGitContext
+                    maxDepth: maxDepth
                 )
             }
         } catch {
