@@ -276,18 +276,6 @@ let audit = await AwareAccessibilityAuditor.shared.audit(level: .AA)
 - `.AA`: Recommended (WCAG 2.1 Level AA)
 - `.AAA`: Enhanced accessibility
 
-### Visual Regression Testing
-```swift
-// Capture baseline
-let baseline = await AwareVisualTest.shared.captureBaseline(name: "login-view")
-
-// Later, detect changes
-let regression = await AwareVisualTest.shared.detectRegression(name: "login-view")
-if let regression = regression {
-    print("Regression detected: \(regression.changedElements)")
-}
-```
-
 ### Coverage Tracking
 ```swift
 let coverage = await AwareCoverage.shared.getCoverage()
@@ -895,7 +883,6 @@ VStack {
 - `.awareBehavior()` for backend metadata
 - Performance budgeting
 - WCAG auditing
-- Visual regression testing
 
 ### Migration Steps
 ```swift
