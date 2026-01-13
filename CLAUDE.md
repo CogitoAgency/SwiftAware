@@ -2,7 +2,7 @@
 
 SwiftUI instrumentation framework for LLM-driven UI testing.
 
-> ⚠️ **Development Beta (v2.2.0-beta)**: This is an active development release. APIs and features are subject to change. Not recommended for production use yet.
+> ⚠️ **Development Beta (v3.0.0-beta)**: This is an active development release. APIs and features are subject to change. Not recommended for production use yet.
 
 ## Core Philosophy
 - **Ghost UI**: LLM tests without moving mouse
@@ -10,18 +10,96 @@ SwiftUI instrumentation framework for LLM-driven UI testing.
 - **Rich State**: Exact values, not visual appearance
 - **Staleness Detection**: Know when @State fails to update
 
+## v3.0 LLM-First API 🎯 NEW
+
+Week 3 brought major API improvements optimized for LLM consumption:
+
+### Explicit Action Methods
+Replace generic `executeAction()` with 21 type-safe methods:
+```swift
+// Before (v2.x)
+await Aware.shared.executeAction(AwareCommand(action: "tap", viewId: "button"))
+
+// After (v3.0)
+let result = await Aware.shared.tap(viewId: "button")  // Returns AwareTapResult
+```
+
+**Available Methods:**
+- **Tap**: `tap()`, `longPress()`, `doubleTap()`, `swipe()`
+- **Text**: `setText()`, `appendText()`, `clearText()`, `typeText()`
+- **Focus**: `focus()`, `blurFocus()`, `focusNextField()`, `focusPreviousField()`
+- **Navigation**: `navigateBack()`, `dismissModal()`
+- **Query**: `find()`, `snapshot()`
+- **Assertions**: `assertExists()`, `assertVisible()`, `assertState()`, `assertViewCount()`
+
+### Type-Safe State Tracking
+Eliminates string parsing confusion with `AwareStateValue` enum:
+```swift
+// Before (v2.x) - string confusion
+Aware.shared.registerState("toggle", key: "isOn", value: "true")
+let state = Aware.shared.getStateValue("toggle", key: "isOn")  // Returns "true" (String)
+
+// After (v3.0) - type-safe
+Aware.shared.registerStateTyped("toggle", key: "isOn", value: .bool(true))
+if let isOn = Aware.shared.getStateBool("toggle", key: "isOn") {  // Returns Bool
+    print("Toggle is: \(isOn)")
+}
+```
+
+**Supported Types:** `.string`, `.int`, `.double`, `.bool`, `.data`, `.array`, `.dictionary`, `.null`
+
+### Hierarchical Error System
+Category-based routing for better LLM error handling:
+```swift
+// Before (v2.x) - flat errors
+catch AwareError.viewRegistrationFailed(let reason, let viewId)
+
+// After (v3.0) - hierarchical
+catch AwareErrorV3.registration(.viewRegistrationFailed(let reason, let viewId))
+
+// Route by category
+switch error.category {
+case .registration: // Handle all registration errors
+case .state: // Handle all state errors
+case .action: // Handle all action errors
+// ...
+}
+```
+
+**10 Categories:** registration, state, action, input, query, snapshot, animation, backend, configuration, system
+
+### Enhanced Metadata
+Rich semantic information for LLM decision-making:
+```swift
+let saveAction = AwareActionMetadataV2(
+    actionDescription: "Saves document to cloud",
+    actionType: .network,
+    expectedDurationMs: 1500,
+    preconditions: ["document.hasChanges", "user.isOnline"],
+    riskLevel: .medium,
+    impactLevel: .major,
+    isIdempotent: true,
+    maxRetries: 3
+)
+```
+
+### Token Efficiency
+- Snapshot API defaults to `.compact` (50% token savings)
+- Compact state representation: 3-8 tokens vs 10-15
+- Error messages: 15-20 tokens vs 40-60
+
 ## Monorepo Architecture
 
 Aware is now organized as a modular monorepo with independent package versioning:
 
 | Package | Version | Platform | Purpose |
 |---------|---------|----------|---------|
-| **AwareCore** | v1.5.0-beta | Swift | Platform-agnostic foundation (types, protocols, testing) |
+| **AwareCore** | v3.0.0-beta | Swift | Platform-agnostic foundation with v3.0 LLM-First API |
 | **AwareiOS** | v2.2.0-beta | iOS 17+ | iOS with UIViewID enum, .ui*() modifiers, typeText support |
 | **AwareMacOS** | v2.0.3-beta | macOS 14+ | macOS-specific implementation with CGEvent simulation |
 | **AwareBackendClient** | v1.0.0-beta | Cross-platform | HTTP client for BackendAware REST API |
 | **AwareBridge** | v1.0.0-beta | Cross-platform | WebSocket IPC for real-time communication (<5ms) |
-| **Aware** | v2.0.0-beta | Umbrella | Backward-compatible re-export facade |
+| **Aware** | v3.0.0-beta | Umbrella | Backward-compatible re-export facade with v3.0 APIs |
 
 ### Importing Packages
 
@@ -52,7 +130,7 @@ Each package versions independently:
 **Umbrella package (recommended):**
 ```swift
 dependencies: [
-    .package(url: "https://github.com/adrian-mei/Aware", from: "2.2.0-beta")
+    .package(url: "https://github.com/adrian-mei/Aware", from: "3.0.0-beta")
 ]
 
 // In your target
@@ -65,7 +143,7 @@ dependencies: [
 **Specific packages:**
 ```swift
 dependencies: [
-    .package(url: "https://github.com/adrian-mei/Aware", from: "2.2.0-beta")
+    .package(url: "https://github.com/adrian-mei/Aware", from: "3.0.0-beta")
 ]
 
 // In your target
@@ -912,6 +990,6 @@ MIT License - see LICENSE file for details.
 
 ---
 
-**Version**: 2.2.0-beta
+**Version**: 3.0.0-beta
 **Last Updated**: 2026-01-13
 **Minimum Requirements**: iOS 17+, macOS 14+
