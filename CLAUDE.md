@@ -273,8 +273,8 @@ If working with a freshly cloned or new Aware repository:
 # 1. Check current branch
 git branch --show-current
 
-# 2. If on "main", rename to "breathe"
-git branch -m main breathe
+# 2. If NOT on "breathe", switch to it (create if needed)
+git checkout -b breathe
 
 # 3. Verify you're on breathe branch
 git branch --show-current  # Should output: breathe
@@ -284,13 +284,20 @@ git branch --show-current  # Should output: breathe
 
 | Branch | Purpose | Usage |
 |--------|---------|-------|
-| `breathe` | **Primary development branch** | All commits go here |
-| `main` | Legacy/mirror (if exists) | Do NOT use for new work |
+| `breathe` | **Development branch** | **ALL LLM commits go here** |
+| `main` | **Production branch** | **NEVER commit here - user merges manually** |
 
-**Why "breathe"?**
-- Consistency with Breathe IDE's development workflow
-- Clear separation from traditional main/master conventions
-- Enables seamless integration between standalone and embedded usage
+**CRITICAL RULES FOR LLMs:**
+- ✅ **ALWAYS commit to `breathe` branch**
+- ❌ **NEVER commit to `main` branch** - this is production-only
+- ❌ **NEVER rename or delete `main` branch**
+- ℹ️ User will manually merge `breathe` → `main` for production releases
+
+**Why this strategy?**
+- `breathe` branch = active development (safe for LLMs to commit)
+- `main` branch = stable production code (user controls releases)
+- Clear separation prevents accidental production commits
+- Enables seamless integration with Breathe IDE's workflow
 
 ### Auto-Commit Protocol
 
@@ -521,7 +528,7 @@ git reset --hard HEAD~1
 - ✅ **Build and test before committing**
 - ✅ **Use conventional commit format** (feat:, fix:, docs:, etc.)
 - ✅ **Include co-author attribution** for LLM commits
-- ❌ **Never commit to `main`** if `breathe` exists
+- ❌ **Never commit to `main`** - production branch only, user merges manually
 - ❌ **Never commit broken builds** or failing tests
 
 ## API Reference
