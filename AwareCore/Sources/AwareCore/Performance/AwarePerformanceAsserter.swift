@@ -223,6 +223,35 @@ public struct PerformanceBudget: Sendable {
         self.name = name
     }
 
+    // MARK: - Presets
+
+    /// Lenient budget (500ms snapshot, 300ms action, 50ms query)
+    /// **LLM Guidance:** Use for complex operations or initial development
+    public static let lenient = PerformanceBudget(
+        snapshotMs: 500,
+        actionMs: 300,
+        queryMs: 50,
+        name: "lenient"
+    )
+
+    /// Standard budget (250ms snapshot, 150ms action, 20ms query)
+    /// **LLM Guidance:** Recommended for most applications
+    public static let standard = PerformanceBudget(
+        snapshotMs: 250,
+        actionMs: 150,
+        queryMs: 20,
+        name: "standard"
+    )
+
+    /// Strict budget (100ms snapshot, 50ms action, 10ms query)
+    /// **LLM Guidance:** Use for instant feedback requirements
+    public static let strict = PerformanceBudget(
+        snapshotMs: 100,
+        actionMs: 50,
+        queryMs: 10,
+        name: "strict"
+    )
+
     /// Human-readable description (~20 tokens)
     public var description: String {
         return "\(name): snapshot \(snapshotMs)ms, action \(actionMs)ms, query \(queryMs)ms"

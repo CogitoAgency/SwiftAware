@@ -394,8 +394,8 @@ final class AwarePerformanceMonitorTests: XCTestCase {
     }
 
     /// Test assertQueryWithinBudget convenience method
-    func testAssertQueryWithinBudget() async {
-        let result = await AwarePerformanceAsserter.shared.assertQueryWithinBudget({
+    func testAssertQueryWithinBudget() async throws {
+        let result = try await AwarePerformanceAsserter.shared.assertQueryWithinBudget({
             // Very fast query
             _ = 1 + 1
         }, budget: .strict)
