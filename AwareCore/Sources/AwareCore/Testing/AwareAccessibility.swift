@@ -370,15 +370,38 @@ public class AwareAccessibilityAuditor: ObservableObject {
     }
 
     private func hasHint(_ viewId: String) -> Bool {
-        return false
+        // Check if view has registered accessibility hint in state
+        let hint = Aware.shared.getStateValue(viewId, key: "accessibilityHint")
+        return hint != nil && !(hint?.isEmpty ?? true)
     }
 
     private func isKeyboardNavigable() -> Bool {
-        return true
+        // Check if any views have focus tracking enabled
+        let aware = Aware.shared
+        let viewIds = aware.registeredViewIds
+
+        // Count views with focus state
+        let focusableCount = viewIds.filter { viewId in
+            aware.getStateValue(viewId, key: "isFocusable") == "true" ||
+            aware.getStateValue(viewId, key: "canBecomeFocused") == "true"
+        }.count
+
+        // At least 2 focusable elements suggests keyboard navigation
+        return focusableCount >= 2
     }
 
     private func hasHeadingStructure() -> Bool {
-        return false
+        // Check for views with heading traits
+        let aware = Aware.shared
+        let viewIds = aware.registeredViewIds
+
+        let headingCount = viewIds.filter { viewId in
+            aware.getStateValue(viewId, key: "accessibilityTraits")?.contains("heading") == true ||
+            aware.getStateValue(viewId, key: "isHeading") == "true"
+        }.count
+
+        // At least 1 heading suggests structure
+        return headingCount >= 1
     }
 }
 
@@ -501,7 +524,7 @@ extension Aware {
 
     /// Get accessibility label for a view
     public func getLabel(_ viewId: String) -> String? {
-        return getStateValue(viewId, key: "label")
+        return Aware.shared.getStateValue(viewId, key: "label")
     }
 
     /// Assert view is accessible
