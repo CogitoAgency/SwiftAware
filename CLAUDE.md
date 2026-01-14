@@ -1,843 +1,287 @@
-# Aware Framework
+# CLAUDE.md
 
-SwiftUI instrumentation framework for LLM-driven UI testing.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> ⚠️ **Development Beta (v3.0.0-beta)**: This is an active development release. APIs and features are subject to change. Not recommended for production use yet.
+## Project Overview
 
-## Core Philosophy
-- **Ghost UI**: LLM tests without moving mouse
-- **80% Token Reduction**: 100-120 tokens vs 500-600 for screenshots
-- **Rich State**: Exact values, not visual appearance
-- **Staleness Detection**: Know when @State fails to update
+**Aware** is a universal SwiftUI instrumentation framework for LLM-driven UI testing. It reduces token costs by 99.3% compared to screenshots while providing full UI state access.
 
-## v3.0 LLM-First API 🎯 NEW
+> ⚠️ **Development Beta (v3.0.0-beta)**: Active development release. APIs subject to change.
 
-Week 3 brought major API improvements optimized for LLM consumption:
-
-### Explicit Action Methods
-Replace generic `executeAction()` with 21 type-safe methods:
-```swift
-// Before (v2.x)
-await Aware.shared.executeAction(AwareCommand(action: "tap", viewId: "button"))
-
-// After (v3.0)
-let result = await Aware.shared.tap(viewId: "button")  // Returns AwareTapResult
-```
-
-**Available Methods:**
-- **Tap**: `tap()`, `longPress()`, `doubleTap()`, `swipe()`
-- **Text**: `setText()`, `appendText()`, `clearText()`, `typeText()`
-- **Focus**: `focus()`, `blurFocus()`, `focusNextField()`, `focusPreviousField()`
-- **Navigation**: `navigateBack()`, `dismissModal()`
-- **Query**: `find()`, `snapshot()`
-- **Assertions**: `assertExists()`, `assertVisible()`, `assertState()`, `assertViewCount()`
-
-### Type-Safe State Tracking
-Eliminates string parsing confusion with `AwareStateValue` enum:
-```swift
-// Before (v2.x) - string confusion
-Aware.shared.registerState("toggle", key: "isOn", value: "true")
-let state = Aware.shared.getStateValue("toggle", key: "isOn")  // Returns "true" (String)
-
-// After (v3.0) - type-safe
-Aware.shared.registerStateTyped("toggle", key: "isOn", value: .bool(true))
-if let isOn = Aware.shared.getStateBool("toggle", key: "isOn") {  // Returns Bool
-    print("Toggle is: \(isOn)")
-}
-```
-
-**Supported Types:** `.string`, `.int`, `.double`, `.bool`, `.data`, `.array`, `.dictionary`, `.null`
-
-### Hierarchical Error System
-Category-based routing for better LLM error handling:
-```swift
-// Before (v2.x) - flat errors
-catch AwareError.viewRegistrationFailed(let reason, let viewId)
-
-// After (v3.0) - hierarchical
-catch AwareErrorV3.registration(.viewRegistrationFailed(let reason, let viewId))
-
-// Route by category
-switch error.category {
-case .registration: // Handle all registration errors
-case .state: // Handle all state errors
-case .action: // Handle all action errors
-// ...
-}
-```
-
-**10 Categories:** registration, state, action, input, query, snapshot, animation, backend, configuration, system
-
-### Enhanced Metadata
-Rich semantic information for LLM decision-making:
-```swift
-let saveAction = AwareActionMetadataV2(
-    actionDescription: "Saves document to cloud",
-    actionType: .network,
-    expectedDurationMs: 1500,
-    preconditions: ["document.hasChanges", "user.isOnline"],
-    riskLevel: .medium,
-    impactLevel: .major,
-    isIdempotent: true,
-    maxRetries: 3
-)
-```
-
-### Token Efficiency
-- Snapshot API defaults to `.compact` (50% token savings)
-- Compact state representation: 3-8 tokens vs 10-15
-- Error messages: 15-20 tokens vs 40-60
+**Core Value Proposition:**
+- **Ghost UI Testing**: LLMs test without mouse/screenshot simulation
+- **Token Efficiency**: 100-120 tokens vs 15,000 for screenshots
+- **Cross-Platform**: iOS, macOS, Web (TypeScript), Backend (Python/Node)
+- **Type-Safe**: v3.0 introduces explicit action methods and hierarchical errors
 
 ## Monorepo Architecture
 
-Aware is now organized as a modular monorepo with independent package versioning:
+Aware is organized as a **modular monorepo** with independent package versioning:
 
 | Package | Version | Platform | Purpose |
 |---------|---------|----------|---------|
-| **AwareCore** | v3.0.0-beta | Swift | Platform-agnostic foundation with v3.0 LLM-First API |
-| **AwareiOS** | v2.2.0-beta | iOS 17+ | iOS with UIViewID enum, .ui*() modifiers, typeText support |
+| **AwareCore** | v3.0.0-beta | Swift | Platform-agnostic foundation (types, protocols, services) |
+| **AwareiOS** | v2.2.0-beta | iOS 17+ | iOS-specific implementation with UIViewID enum, typeText support |
 | **AwareMacOS** | v2.0.3-beta | macOS 14+ | macOS-specific implementation with CGEvent simulation |
 | **AwareBackendClient** | v1.0.0-beta | Cross-platform | HTTP client for BackendAware REST API |
-| **AwareBridge** | v1.0.0-beta | Cross-platform | WebSocket IPC for real-time communication (<5ms) |
-| **Aware** | v3.0.0-beta | Umbrella | Backward-compatible re-export facade with v3.0 APIs |
+| **AwareBridge** | v1.0.0-beta | Cross-platform | WebSocket IPC for real-time communication (<5ms latency) |
+| **Aware** | v3.0.0-beta | Umbrella | Backward-compatible re-export facade |
 
-### Importing Packages
+**Key Benefit**: Each package versions independently. Upgrade iOS without affecting macOS.
 
-**Simple (recommended for most users):**
-```swift
-import Aware  // Auto-imports correct platform module
-```
-
-**Granular (for advanced use cases):**
-```swift
-import AwareCore           // Types and protocols only
-import AwareiOS            // iOS-specific features
-import AwareMacOS          // macOS-specific features
-import AwareBackendClient  // Backend HTTP client
-```
-
-### Independent Versioning
-
-Each package versions independently:
-- Upgrade iOS to v2.1.0 without affecting macOS at v2.0.3
-- Core types remain stable across platform updates
-- Backend client evolves separately from UI instrumentation
-
-## Installation
-
-### Swift Package Manager
-
-**Umbrella package (recommended):**
-```swift
-dependencies: [
-    .package(url: "https://github.com/adrian-mei/Aware", from: "3.0.0-beta")
-]
-
-// In your target
-.target(
-    name: "MyApp",
-    dependencies: ["Aware"]  // Auto-imports correct platform
-)
-```
-
-**Specific packages:**
-```swift
-dependencies: [
-    .package(url: "https://github.com/adrian-mei/Aware", from: "3.0.0-beta")
-]
-
-// In your target
-.target(
-    name: "MyApp",
-    dependencies: [
-        .product(name: "AwareCore", package: "Aware"),
-        .product(name: "AwareiOS", package: "Aware"),
-        .product(name: "AwareBackendClient", package: "Aware")
-    ]
-)
-```
-
-## Quick Start
-
-### Basic Instrumentation
-```swift
-import Aware
-
-struct LoginView: View {
-    @State private var email = ""
-    @State private var password = ""
-
-    var body: some View {
-        VStack {
-            TextField("Email", text: $email)
-                .awareTextField("email-field", text: $email, label: "Email", isFocused: $focusedField)
-
-            SecureField("Password", text: $password)
-                .awareSecureField("password-field", text: $password, label: "Password")
-
-            Button("Login") { login() }
-                .awareButton("login-btn", label: "Login")
-                .awareMetadata(
-                    "login-btn",
-                    description: "Authenticates user with email/password",
-                    type: .network,
-                    apiEndpoint: "/auth/login"
-                )
-        }
-        .awareContainer("login-form", label: "Login Form")
-    }
-}
-```
-
-### Getting Snapshots
-```swift
-let snapshot = await Aware.shared.snapshot(format: .compact)
-// Returns: ~100 tokens with all UI state
-```
-
-### iOS Enhanced Features (AetherSing Integration)
-
-**Stable View Identifiers:**
-```swift
-import AwareiOS
-
-// Use predefined UIViewID enum to prevent ID drift
-Button("Sign In") { signIn() }
-    .uiTappable(UIViewID.signInButton.rawValue, label: "Sign In") {
-        await signIn()
-    }
-
-TextField("Email", text: $email)
-    .uiTextField(UIViewID.emailField.rawValue,
-                 text: $email,
-                 label: "Email",
-                 placeholder: "user@example.com")
-```
-
-**Rich State Tracking:**
-```swift
-Form {
-    // Fields with automatic typeText binding
-    TextField("Email", text: $email)
-        .uiTextField(UIViewID.emailField.rawValue, text: $email, label: "Email")
-
-    SecureField("Password", text: $password)
-        .uiSecureField(UIViewID.passwordField.rawValue, text: $password, label: "Password")
-}
-.uiValidationState("login-form",
-                   isValid: isValid,
-                   errors: ["Password too short"])
-.uiLoadingState("login-form",
-                isLoading: isLoading,
-                message: "Signing in...",
-                progress: 0.7)
-.uiErrorState("login-form",
-              error: loginError,
-              canRetry: true)
-```
-
-**TypeText Support (Ghost UI):**
-```swift
-// LLM can type without mouse simulation
-await AwareIOSPlatform.shared.typeText(UIViewID.emailField.rawValue,
-                                        text: "test@example.com")
-await AwareIOSPlatform.shared.executeAction(UIViewID.signInButton.rawValue)
-```
-
-### Ghost UI Testing
-```swift
-// Test text input without moving mouse
-await Aware.shared.typeText(viewId: "email-field", text: "user@example.com")
-
-// Verify state
-let emailState = Aware.shared.getState("email-field", key: "value")
-assert(emailState == "user@example.com")
-```
-
-## Available Modifiers
-
-| Modifier | Use Case | Example |
-|----------|----------|---------|
-| `.aware()` | Basic view registration | `.aware("view-id", label: "My View")` |
-| `.awareContainer()` | Group related elements | `.awareContainer("form", label: "Login Form")` |
-| `.awareButton()` | Track button taps | `.awareButton("save-btn", label: "Save")` |
-| `.awareTextField()` | Track text input with focus | `.awareTextField("email", text: $email, label: "Email", isFocused: $focused)` |
-| `.awareSecureField()` | Track password input (secure) | `.awareSecureField("pwd", text: $password, label: "Password")` |
-| `.awareState()` | Track any state | `.awareState("view-id", key: "isEnabled", value: enabled)` |
-| `.awareMetadata()` | Add action semantics | `.awareMetadata("btn-id", description: "Saves file", type: .fileSystem)` |
-| `.awareBehavior()` | Add backend behavior | `.awareBehavior("list", dataSource: "REST API", refreshTrigger: "onAppear")` |
-| `.awareFocus()` | Track focus/hover state | `.awareFocus("input-id")` |
-| `.awareScroll()` | Track scroll position | `.awareScroll("scrollview-id")` |
-| `.awareAnimation()` | Track animation state | `.awareAnimation("view-id", type: "spring", duration: 0.3, isAnimating: $animating)` |
-
-### iOS Convenience Modifiers (AwareiOS only)
-
-Rich state tracking modifiers for common UI patterns:
-
-| Modifier | Purpose | Key State Tracked |
-|----------|---------|-------------------|
-| `.uiLoadingState()` | Loading with progress | isLoading, loadingMessage, loadingProgress |
-| `.uiErrorState()` | Error with retry | hasError, errorMessage, canRetry |
-| `.uiProcessingState()` | Multi-step processing | isProcessing, currentStep, stepProgress, totalSteps |
-| `.uiValidationState()` | Form validation | isValid, errorCount, errors, warnings |
-| `.uiNetworkState()` | Network connectivity | isConnected, isLoading, lastSync |
-| `.uiSelectionState()` | List/collection selection | selectionCount, totalItems, allowsMultiple |
-| `.uiEmptyState()` | Empty content | isEmpty, emptyMessage, canAddItems |
-| `.uiAuthState()` | Authentication status | isAuthenticated, username, requiresReauth |
-| `.uiTappable()` | Direct action callback | isEnabled + ghost UI support |
-| `.uiTextField()` | Enhanced text field | value, placeholder, characterCount + typeText |
-| `.uiSecureField()` | Enhanced secure field | hasValue, placeholder, isEnabled |
-| `.uiToggle()` | Enhanced toggle | isOn, isEnabled |
-
-**Example:**
-```swift
-Form {
-    TextField("Email", text: $email)
-        .uiTextField("email", text: $email, label: "Email", placeholder: "user@example.com")
-}
-.uiValidationState("form", isValid: isValid, errors: ["Email required"])
-.uiLoadingState("form", isLoading: isSubmitting, message: "Submitting...", progress: 0.5)
-.uiNetworkState("form", isConnected: networkMonitor.isConnected)
-```
-
-### UIViewID Enum (iOS)
-
-Predefined stable identifiers to prevent ID drift:
-
-**Categories:**
-- **Authentication**: signInView, signUpView, emailField, passwordField, signInButton
-- **Navigation**: tabBar, homeTab, searchTab, profileTab, navigationBar, backButton
-- **Forms**: formView, textField, submitButton, cancelButton, saveButton, deleteButton
-- **Settings**: settingsView, notificationsToggle, darkModeToggle, logoutButton
-- **Loading/Error**: loadingView, errorView, retryButton, emptyStateView
-- **Media**: videoPlayer, audioPlayer, playButton, pauseButton
-
-**Usage:**
-```swift
-Button("Sign In") { signIn() }
-    .uiTappable(UIViewID.signInButton.rawValue, label: "Sign In") {
-        await signIn()
-    }
-
-// Scoped IDs
-UIViewID.homeView.scoped("header")     // "homeView.header"
-UIViewID.listView.indexed(0)           // "listView[0]"
-UIViewID.signInButton.suffixed("primary") // "signInButton-primary"
-
-// Custom IDs
-UIViewID.custom("my-custom-id")
-```
-
-## Testing Features
-
-### Performance Budgeting
-```swift
-let metrics = await AwarePerformanceMonitor.shared.measure {
-    await Aware.shared.typeText(viewId: "search-field", text: "query")
-}
-await AwarePerformanceAsserter.shared.assertWithinBudget(metrics, budget: .standard)
-```
-
-**Budget Levels**:
-- `.lenient`: 500ms (good for complex operations)
-- `.standard`: 250ms (recommended for most actions)
-- `.strict`: 100ms (for instant feedback)
-
-### WCAG Accessibility Auditing
-```swift
-let audit = await AwareAccessibilityAuditor.shared.audit(level: .AA)
-// Checks: Color contrast, touch targets, label requirements
-```
-
-**Audit Levels**:
-- `.A`: Minimum compliance
-- `.AA`: Recommended (WCAG 2.1 Level AA)
-- `.AAA`: Enhanced accessibility
-
-### Coverage Tracking
-```swift
-let coverage = await AwareCoverage.shared.getCoverage()
-print("Views visited: \(coverage.visitedViews.count)/\(coverage.totalViews)")
-print("Actions taken: \(coverage.actionsCovered.count)/\(coverage.totalActions)")
-```
-
-## Snapshot Formats
-
-| Format | Token Count | Use Case |
-|--------|-------------|----------|
-| `compact` | 100-120 | LLM consumption (recommended) |
-| `text` | 200-300 | Human-readable tree |
-| `json` | 300-500 | Programmatic parsing |
-| `markdown` | 250-400 | Documentation |
-
-```swift
-// Get compact snapshot for LLM
-let compact = await Aware.shared.snapshot(format: .compact)
-
-// Get JSON for programmatic use
-let json = await Aware.shared.snapshot(format: .json)
-```
-
-## Advanced Features
-
-### Focus Management
-```swift
-// Navigate focus programmatically
-await AwareFocusManager.shared.focusNext() // Tab to next field
-await AwareFocusManager.shared.focusPrevious() // Shift+Tab
-await AwareFocusManager.shared.focus("email-field") // Focus specific field
-```
-
-### Action Metadata
-Action metadata helps LLMs understand what buttons do before clicking them:
-
-```swift
-Button("Delete Account") { deleteAccount() }
-    .awareButton("delete-btn", label: "Delete Account")
-    .awareMetadata(
-        "delete-btn",
-        description: "Permanently deletes user account and all data",
-        type: .destructive,
-        isDestructive: true,
-        requiresConfirmation: true,
-        sideEffects: ["deletes data", "logs out", "sends email"]
-    )
-```
-
-### Behavior Metadata
-Behavior metadata describes data flow and backend integration:
-
-```swift
-List(users) { user in
-    UserRow(user: user)
-}
-.awareContainer("user-list", label: "Users")
-.awareBehavior(
-    "user-list",
-    dataSource: "REST API",
-    refreshTrigger: "onAppear",
-    cacheDuration: "5m",
-    errorHandling: "retry(3)",
-    loadingBehavior: "skeleton",
-    boundModel: "User"
-)
-```
-
-## iOS Platform Support (AetherSing Integration)
-
-Aware has been enhanced with comprehensive iOS platform support, contributed by the AetherSing team. These features enable advanced SwiftUI testing on iOS devices and simulators.
-
-### iOS Configuration
-
-```swift
-// Configure Aware for iOS platform
-Aware.configureForIOS(ipcPath: "~/.aware")
-
-// Framework automatically sets up:
-// - IPC communication via ~/.aware directory
-// - Heartbeat monitoring for app health
-// - iOS-specific gesture and input handling
-```
-
-### iOS-Specific Modifiers
-
-```swift
-struct LoginView: View {
-    @State private var email = ""
-    @State private var password = ""
-    @State private var rememberMe = false
-
-    var body: some View {
-        VStack {
-            TextField("Email", text: $email)
-                .awareTextField("email-field", text: $email,
-                               label: "Email Address", placeholder: "user@example.com")
-
-            SecureField("Password", text: $password)
-                .awareSecureField("password-field", text: $password,
-                                 label: "Password", placeholder: "••••••••")
-
-            Toggle("Remember me", isOn: $rememberMe)
-                .awareToggle("remember-toggle", isOn: $rememberMe, label: "Remember Me")
-
-            Button("Sign In") { signIn() }
-                .awareButton("signin-btn", label: "Sign In") {
-                    // Direct action callback for ghost UI testing
-                    signIn()
-                }
-        }
-        .awareContainer("login-form", label: "Login Form")
-    }
-}
-```
-
-### iOS-Specific Assertions
-
-```swift
-// Test iOS-specific UI states
-let emailFocused = await aware.assertFocused("email-field")
-let passwordNotEmpty = await aware.assertTextFieldNotEmpty("password-field")
-let toggleOn = await aware.assertToggleOn("remember-toggle")
-
-// Navigation testing
-let tabsPresent = await aware.assertNavigationTabsPresent()
-```
-
-### Direct Action Callbacks
-
-```swift
-// Ghost UI testing - LLMs can interact without mouse
-let success = await aware.tapDirect("signin-btn")
-let textEntered = await aware.typeText("Hello World", in: "email-field")
-let toggled = await aware.toggle("remember-toggle")
-```
-
-### IPC Communication
-
-```swift
-// MCP-compatible IPC for LLM integration
-~/.aware/
-├── ui_command.json          # Commands from LLM
-├── ui_result.json           # Results to LLM
-├── ui_snapshot.json         # Current UI state
-└── ui_watcher_heartbeat.txt # App health monitoring
-```
-
-### Token Efficiency on iOS
-
-| Method | Tokens | Cost (per test) | Notes |
-|--------|--------|-----------------|-------|
-| **Aware iOS** | **~110** | **$0.00033** | Full state + actions |
-| Screenshots | ~15,000 | $0.045 | Visual only |
-| Accessibility | ~1,500 | $0.0045 | Structure only |
-
-**iOS testing with Aware: 99.3% token reduction vs traditional screenshot approaches.**
-
-## Breathe Integration
-
-This is the **standalone** Aware framework. For **Breathe IDE users**, enhanced features are available through deep integration with the Breathe ecosystem.
-
-### Snapshot Format Storage & Management 🆕
-
-**Version 3.0** introduces persistent storage of snapshot format metadata, user preferences, and capture history in Breathe's SQLite database (`~/.breathe/index.sqlite`).
-
-#### Dual Format System
-
-**UI Snapshot Formats** (Runtime State Capture):
-- `compact` - 100-120 tokens (LLM-optimized, ghost UI testing)
-- `text` - 200-300 tokens (human-readable tree structure)
-- `json` - 300-500 tokens (programmatic parsing)
-- `markdown` - 250-400 tokens (documentation)
-
-**Documentation Export Formats** (Framework API Docs):
-- `compact` - 1000-1200 tokens (LLM planning)
-- `jsonSchema` - 1400-1600 tokens (validation and queries)
-- `mermaid` - 400-600 tokens (Breathe IDE visualization)
-- `markdown` - 2500-3500 tokens (human-readable docs)
-- `openapi` - 2000-3000 tokens (external tool integration)
-
-#### MCP Tools (7 Snapshot Format Tools)
-
-Access via Claude Code or Breathe IDE:
+### Package Directory Structure
 
 ```
-# List available formats with metadata
-snapshot_formats_list
-
-# Get current project preferences
-snapshot_preferences_get
-
-# Update preferences
-snapshot_preferences_set
-
-# View capture history
-snapshot_history_get
-
-# Get statistics and savings
-snapshot_history_stats
-
-# Record a snapshot (internal)
-snapshot_history_record
-
-# Get AI-powered format recommendation
-snapshot_recommend_format
+Aware/
+├── AwareCore/                    # Platform-agnostic foundation
+│   ├── Package.swift
+│   ├── Sources/AwareCore/
+│   │   ├── Documentation/       # API documentation generators
+│   │   ├── Errors/              # Error types (hierarchical v3.0)
+│   │   ├── Managers/            # Focus, Navigation, Interaction managers
+│   │   ├── Performance/         # Performance monitoring & budgeting
+│   │   ├── Recovery/            # Error recovery strategies
+│   │   ├── Services/            # Core services (AwareService, modifiers)
+│   │   ├── Testing/             # Accessibility, coverage, mocking
+│   │   └── Types/               # Protocols, commands, state types
+│   └── Tests/AwareCoreTests/
+│
+├── AwareiOS/                     # iOS-specific implementation
+│   ├── Package.swift
+│   ├── Sources/AwareiOS/
+│   │   ├── Modifiers/           # .ui*() modifiers (iOS-specific)
+│   │   ├── Platform/            # AwareIOSPlatform, IPC bridge
+│   │   ├── Testing/             # iOS-specific test utilities
+│   │   └── Types/               # UIViewID enum
+│   └── Tests/AwareiOSTests/
+│
+├── AwareMacOS/                   # macOS-specific implementation
+│   ├── Package.swift
+│   ├── Sources/AwareMacOS/
+│   │   ├── Modifiers/           # macOS-specific modifiers
+│   │   ├── Platform/            # AwareMacOSPlatform, CGEvent simulation
+│   │   ├── Testing/             # macOS-specific test utilities
+│   │   └── Types/               # macOS-specific types
+│   └── Tests/AwareMacOSTests/
+│
+├── AwareBridge/                  # WebSocket IPC
+│   ├── Package.swift
+│   ├── Sources/AwareBridge/
+│   └── Tests/AwareBridgeTests/
+│
+├── AwareBackendClient/           # Backend HTTP client
+│   └── swift/
+│       ├── Package.swift
+│       ├── Sources/AwareBackendClient/
+│       └── Tests/AwareBackendClientTests/
+│
+├── Aware/                        # Umbrella package (backward compatibility)
+│   └── Sources/Aware/
+│       └── Aware.swift          # Re-exports platform modules
+│
+├── Tests/AwareTests/             # Integration tests
+├── Package.swift                 # Root package manifest
+└── README.md
 ```
 
-**Example Usage:**
-```
-User: List available Aware snapshot formats
-Claude: [Calls snapshot_formats_list]
+## Build Commands
 
-Found 9 snapshot formats
-
-**UI Snapshot Formats (4):**
-- **Compact** (compact): LLM-optimized, minimal tokens
-  Tokens: 100-120, Use: Ghost UI testing
-- **Text** (text): Human-readable tree structure
-  Tokens: 200-300, Use: Human debugging
-...
-```
-
-#### Database Schema
-
-Three new tables store format data:
-
-**`aware_snapshot_formats`** - Format metadata registry:
-- Format system (ui_snapshot | doc_export)
-- Token counts (min/max)
-- Use cases and priorities
-- Config options (JSON)
-
-**`aware_preferences`** - Per-project preferences:
-- Default formats (UI & Doc Export)
-- Snapshot settings (hidden views, max depth, compression)
-- Performance budgets (lenient/standard/strict: 500ms/250ms/100ms)
-- WCAG accessibility level (A/AA/AAA)
-- Auto-export settings
-
-**`aware_snapshot_history`** - Audit trail:
-- Capture timestamp and format
-- View count and token count
-- Capture duration (performance tracking)
-- Links to test runs
-- Content hash (deduplication)
-
-#### Token Efficiency Tracking
-
-Breathe automatically calculates and displays token savings:
-
-```
-**Snapshot Statistics (Project 1)**
-
-Overall:
-- Total Snapshots: 250
-- Avg Token Count: 115
-- Avg Capture Time: 48ms
-
-Token Efficiency:
-- Savings vs Screenshots: 99.3% (15,000 → 115 tokens)
-- Cost Savings: ~$0.045 per snapshot
-
-For 100 snapshots:
-- Before: $4.50
-- After: $0.033
-- Total Savings: $4.47
-```
-
-#### Smart Format Recommendation
-
-AI-powered format selection based on test context:
-
-```swift
-// LLM asks for recommendation
-await Aware.shared.recommendFormat(
-    testType: "e2e",
-    viewCount: 25,
-    complexity: "high",
-    needsDetails: false
-)
-
-// Returns: ui_snapshot/compact
-// Reason: "Compact format recommended for complex UIs (99.3% token savings)"
-```
-
-### Additional Breathe Features
-
-- **Multi-App Control**: Test any macOS app or iOS Simulator
-- **Intelligence Features**: Blocker diagnostics, error recovery, test generation
-- **Instrumentation Guidance**: Code analysis suggestions
-- **UI Testing Dashboard**: Visual test results and coverage
-- **Settings Integration**: Glassmorphism UI for format preferences
-
-See Breathe's CLAUDE.md for complete ecosystem features.
-
-## Token Efficiency Comparison
-
-| Method | Tokens | Accuracy | Speed |
-|--------|--------|----------|-------|
-| Screenshots | 10,000-20,000 | Visual only | Slow (encoding) |
-| Accessibility Tree | 1,000-2,000 | Structure only | Fast |
-| **Aware Compact** | **100-120** | **Full state** | **Instant** |
-
-### Example Token Savings
-For a typical login form:
-- **Screenshot**: ~15,000 tokens (2048×1536 PNG)
-- **Accessibility Tree**: ~1,500 tokens (structure only, no state)
-- **Aware Compact**: ~110 tokens (full state + hierarchy)
-
-**Result**: 99.3% reduction vs screenshots, 93% reduction vs accessibility.
-
-## Examples
-
-See `/Examples` directory for:
-- **SimpleLogin**: Login form with validation
-- **SettingsPanel**: Settings with toggles and pickers
-- **DataTable**: Sortable table with pagination
-- **MultiStepWizard**: Wizard with navigation and state
-
-## Implementing Breathe Integration
-
-### Automatic Snapshot Recording (Optional)
-
-To automatically record snapshots to Breathe's database when capturing, add this to your Aware setup:
-
-```swift
-import Aware
-
-class MyApp: App {
-    init() {
-        // Configure Aware with Breathe MCP integration
-        Task {
-            await configureAwareWithBreathe()
-        }
-    }
-
-    func configureAwareWithBreathe() async {
-        // Check if Breathe MCP is available
-        guard let mcpEndpoint = ProcessInfo.processInfo.environment["BREATHE_MCP_ENDPOINT"] else {
-            print("Breathe MCP not configured, using standalone mode")
-            return
-        }
-
-        // Enable auto-recording of snapshots
-        Aware.shared.onSnapshotCaptured = { snapshot in
-            await recordSnapshotToBreatheMCP(snapshot)
-        }
-    }
-
-    func recordSnapshotToBreatheMCP(_ snapshot: AwareSnapshotResult) async {
-        // Call Breathe MCP tool to record snapshot
-        // (Implementation depends on your MCP client)
-        let record = [
-            "formatSystem": "ui_snapshot",
-            "formatName": snapshot.format,
-            "viewCount": snapshot.viewCount,
-            "tokenCount": estimateTokenCount(snapshot.content),
-        ]
-
-        // Send to Breathe via MCP
-        try? await breatheMCPClient.callTool(
-            name: "snapshot_history_record",
-            arguments: ["snapshot": record]
-        )
-    }
-}
-```
-
-### Reading Preferences from Breathe
-
-Your app can read user preferences to use their preferred snapshot format:
-
-```swift
-// Get preferences from Breathe
-let prefs = try await breatheMCPClient.callTool(
-    name: "snapshot_preferences_get",
-    arguments: [:]
-)
-
-// Use preferred format
-let format = AwareSnapshotFormat(rawValue: prefs.defaultUISnapshotFormat) ?? .compact
-let snapshot = await Aware.shared.snapshot(format: format)
-```
-
-### Integration Architecture
-
-```
-┌─────────────────┐
-│   Your App      │
-│  (Aware-based)  │
-└────────┬────────┘
-         │
-         │ IPC (File-based)
-         │ ~/.aware/
-         ▼
-┌─────────────────┐      MCP Tools       ┌──────────────────┐
-│  Breathe IDE    │◄────────────────────►│  Claude Code     │
-│                 │                       │  (LLM)           │
-└────────┬────────┘                       └──────────────────┘
-         │
-         │ SQLite
-         ▼
-┌─────────────────────────┐
-│  ~/.breathe/index.sqlite│
-│  - snapshot_formats     │
-│  - aware_preferences    │
-│  - snapshot_history     │
-└─────────────────────────┘
-```
-
-**Flow:**
-1. Your app captures snapshot with Aware
-2. Optionally records to Breathe database via MCP
-3. Claude Code queries formats/preferences via MCP tools
-4. Breathe UI displays statistics and settings
-5. User preferences flow back to your app
-
-### Benefits of Breathe Integration
-
-1. **Persistent Preferences**: Format settings persist across sessions
-2. **Historical Analysis**: Track token usage over time
-3. **Cost Optimization**: Identify expensive test patterns
-4. **Team Collaboration**: Share format recommendations
-5. **AI Decision Support**: LLMs choose optimal format automatically
-
-## Build Troubleshooting
-
-### Common Issues
-
-#### SPM Cache Corruption
-If you encounter build errors or missing dependencies:
+### Building All Packages
 
 ```bash
-# 1. Close Xcode
-# 2. Clear all SPM caches
+# Build all packages (umbrella + sub-packages)
+swift build
+
+# Build specific package
+swift build --package-path AwareCore/
+swift build --package-path AwareiOS/
+swift build --package-path AwareMacOS/
+swift build --package-path AwareBridge/
+
+# Build in release mode
+swift build -c release
+
+# Clean build artifacts
+rm -rf .build
+swift package clean
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+swift test
+
+# Run tests for specific package
+swift test --package-path AwareCore/
+swift test --package-path AwareiOS/
+
+# Run specific test target
+swift test --filter AwareCoreTests
+
+# Run specific test case
+swift test --filter AwareCoreTests.AwareServiceTests/testSnapshot
+
+# Verbose test output
+swift test --verbose
+
+# Parallel testing (faster)
+swift test --parallel
+```
+
+**CRITICAL**: Always verify `swift build` succeeds before running tests. Failed builds waste time and tokens.
+
+### Package Management
+
+```bash
+# Update dependencies
+swift package update
+
+# Show dependency tree
+swift package show-dependencies
+
+# Resolve dependencies
+swift package resolve
+
+# Dump package manifest
+swift package dump-package
+
+# Reset package cache (if issues)
+swift package reset
+
+# Clean SPM cache completely (nuclear option)
 rm -rf ~/Library/Developer/Xcode/DerivedData
 rm -rf ~/Library/Caches/org.swift.swiftpm
 rm -rf .build
-rm -rf *.xcodeproj
 rm -rf Package.resolved
+swift package reset
+```
 
-# 3. Rebuild
+## Development Workflow
+
+### 1. Making Changes to Core (AwareCore)
+
+```bash
+# 1. Navigate to package
+cd AwareCore/
+
+# 2. Make changes to Swift files
+# ... edit files ...
+
+# 3. Build to verify
+swift build
+
+# 4. Run tests
+swift test
+
+# 5. Return to root and test integration
+cd ..
+swift build
+swift test
+```
+
+### 2. Making Changes to Platform Packages (iOS/macOS)
+
+```bash
+# 1. Navigate to platform package
+cd AwareiOS/
+
+# 2. Make changes
+# ... edit files ...
+
+# 3. Build locally
+swift build
+
+# 4. Test locally
+swift test
+
+# 5. Test integration with core
+cd ..
+swift build --package-path AwareiOS/
+swift test --package-path AwareiOS/
+
+# 6. Test full integration
+swift build
+swift test
+```
+
+### 3. Adding New Swift Files
+
+**No special steps required** - SPM automatically detects new `.swift` files in `Sources/` directories.
+
+```bash
+# Just create the file
+touch AwareCore/Sources/AwareCore/Services/NewService.swift
+
+# Build will pick it up automatically
 swift build
 ```
 
-#### Xcode Project Issues
-If using xcodegen and encountering project issues:
+### 4. Adding New Dependencies
 
-```bash
-# Regenerate Xcode project
-xcodegen generate
-xcodebuild -scheme Aware -configuration Debug build
+Edit the appropriate `Package.swift`:
+
+```swift
+// Example: Adding a dependency to AwareCore
+dependencies: [
+    .package(url: "https://github.com/example/package", from: "1.0.0")
+],
+targets: [
+    .target(
+        name: "AwareCore",
+        dependencies: [
+            .product(name: "ExamplePackage", package: "package")
+        ]
+    )
+]
 ```
 
-#### Verify Package Health
+Then resolve:
 ```bash
-swift package show-dependencies
-swift package dump-package
-swift test  # Run all tests
+swift package resolve
+swift build
 ```
 
-### Build Before Test
-**Always verify build succeeds before running tests.** Failed tests due to build issues waste time and tokens.
+## Testing Strategy
 
-## Git Workflow for LLMs
+### Test Organization
 
-**CRITICAL**: The Aware framework uses the **`breathe`** branch for all development. This applies to both the standalone Aware package and when integrated with Breathe IDE.
+| Test Target | Location | Purpose |
+|-------------|----------|---------|
+| **AwareCoreTests** | `AwareCore/Tests/` | Core functionality (services, managers, types) |
+| **AwareiOSTests** | `AwareiOS/Tests/` | iOS-specific features (UIViewID, .ui*() modifiers) |
+| **AwareMacOSTests** | `AwareMacOS/Tests/` | macOS-specific features (CGEvent simulation) |
+| **AwareBridgeTests** | `AwareBridge/Tests/` | WebSocket IPC functionality |
+| **AwareTests** | `Tests/AwareTests/` | Integration tests across all packages |
 
-### Initial Repository Setup
+### Test Dependencies
 
-If working with a freshly cloned or new Aware repository:
+- **ViewInspector** (0.9.0+): SwiftUI introspection
+- **SnapshotTesting** (1.15.0+): Visual regression testing
+- **Mockingbird** (0.20.0+): Mock generation
+
+### Running Specific Test Categories
 
 ```bash
-# 1. Check current branch
-git branch --show-current
+# Core services
+swift test --filter AwareCoreTests
 
-# 2. If NOT on "breathe", switch to it (create if needed)
-git checkout -b breathe
+# iOS platform
+swift test --filter AwareiOSTests
 
-# 3. Verify you're on breathe branch
-git branch --show-current  # Should output: breathe
+# Performance tests
+swift test --filter PerformanceTests
+
+# Accessibility tests
+swift test --filter AccessibilityTests
+
+# Integration tests only
+swift test --filter AwareTests
 ```
+
+## Git Workflow
+
+**CRITICAL: This repository uses the `breathe` branch for all development.**
 
 ### Branch Strategy
 
@@ -846,384 +290,594 @@ git branch --show-current  # Should output: breathe
 | `breathe` | **Development branch** | **ALL LLM commits go here** |
 | `main` | **Production branch** | **NEVER commit here - user merges manually** |
 
-**CRITICAL RULES FOR LLMs:**
-- ✅ **ALWAYS commit to `breathe` branch**
-- ❌ **NEVER commit to `main` branch** - this is production-only
-- ❌ **NEVER rename or delete `main` branch**
-- ℹ️ User will manually merge `breathe` → `main` for production releases
+### Before Every Commit
 
-**Why this strategy?**
-- `breathe` branch = active development (safe for LLMs to commit)
-- `main` branch = stable production code (user controls releases)
-- Clear separation prevents accidental production commits
-- Enables seamless integration with Breathe IDE's workflow
-
-### Auto-Commit Protocol
-
-When making changes to the Aware framework, follow this commit workflow:
-
-#### 1. Check Status
 ```bash
-git status
+# 1. ALWAYS verify current branch
+git branch --show-current  # Should output: breathe
+
+# 2. If NOT on breathe, switch immediately
+git checkout breathe
+
+# 3. Verify build succeeds
+swift build
+
+# 4. Verify tests pass
+swift test
 ```
 
-#### 2. Stage Changes
+### Commit Protocol
+
+Use conventional commit format:
+
 ```bash
-# Stage all changes
+# Stage changes
 git add .
 
-# Or stage specific files
-git add Sources/Aware/Core/AwareService.swift
-git add Tests/AwareTests/AwareServiceTests.swift
-```
-
-#### 3. Commit with Conventional Format
-Use conventional commit format for consistency:
-
-```bash
+# Commit with proper format
 git commit -m "$(cat <<'EOF'
 feat: Add new capability
 
-Description of what was added and why.
+Description of changes and rationale.
 
-- Bullet point changes
-- More specific details
+- Specific change 1
+- Specific change 2
 - Testing notes
 
 Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 EOF
 )"
+
+# Verify commit
+git log -1 --oneline
 ```
 
 **Commit Types**:
-- `feat:` - New feature or capability
+- `feat:` - New feature
 - `fix:` - Bug fix
-- `refactor:` - Code refactoring without behavior change
-- `test:` - Adding or updating tests
-- `docs:` - Documentation updates
+- `refactor:` - Code refactoring
+- `test:` - Test additions/updates
+- `docs:` - Documentation
 - `perf:` - Performance improvements
-- `chore:` - Maintenance tasks (dependencies, build config)
+- `chore:` - Maintenance (dependencies, build)
 
-#### 4. Verify Commit
-```bash
-# View last commit
-git log -1 --oneline
+### When to Commit
 
-# View all recent commits
-git log --oneline -10
-```
+✅ **DO commit after**:
+1. Feature implementation (new modifiers, services)
+2. Bug fixes
+3. Test additions
+4. Documentation updates (README, CLAUDE.md, CHANGELOG)
+5. Build configuration changes (Package.swift)
 
-### LLM Auto-Commit Guidelines
+❌ **DON'T commit**:
+1. In the middle of multi-file refactoring
+2. Before verifying build succeeds
+3. Before verifying tests pass
+4. Broken code or failing tests
 
-When you (the LLM) make changes to the Aware framework, **always commit** after:
+## Code Architecture
 
-1. **Feature Implementation**: New modifiers, services, or capabilities
-2. **Bug Fixes**: Any corrections to existing code
-3. **Test Additions**: New test files or test cases
-4. **Documentation Updates**: README, CLAUDE.md, or CHANGELOG changes
-5. **Build Configuration**: Package.swift or project configuration changes
+### Core Service: AwareService
 
-**DO NOT commit**:
-- In the middle of multi-file refactoring (wait until complete)
-- Before verifying build succeeds (`swift build`)
-- Before verifying tests pass (`swift test`)
+Central singleton for UI state capture and snapshot generation.
 
-### Example Workflows
+**Location**: `AwareCore/Sources/AwareCore/Services/AwareService.swift`
 
-#### Workflow 1: Add New Feature
-```bash
-# 1. Make code changes
-# ... edit files ...
+**Key Responsibilities**:
+- View registration and hierarchy tracking
+- State management (type-safe in v3.0)
+- Snapshot generation (compact/text/json/markdown formats)
+- Staleness detection (prop-state consistency)
+- IPC file writing (`~/.aware/ui-snapshot.json`)
 
-# 2. Verify build
-swift build
-
-# 3. Run tests
-swift test
-
-# 4. Stage and commit
-git add .
-git commit -m "feat: Add .awareScrollPosition() modifier for scroll tracking"
-
-# 5. Verify
-git log -1
-```
-
-#### Workflow 2: Fix Bug
-```bash
-# 1. Fix the bug
-# ... edit files ...
-
-# 2. Add regression test
-# ... add test ...
-
-# 3. Verify build and tests
-swift build && swift test
-
-# 4. Commit
-git add .
-git commit -m "fix: Correct staleness detection for nested containers"
-```
-
-#### Workflow 3: Update Documentation
-```bash
-# 1. Update docs
-# ... edit CLAUDE.md or README.md ...
-
-# 2. Verify markdown renders correctly
-# ... preview if possible ...
-
-# 3. Commit
-git add CLAUDE.md README.md
-git commit -m "docs: Add git workflow section for LLM guidance"
-```
-
-### Integration with Breathe IDE
-
-When the Aware framework is used within Breathe IDE:
-
-1. **Breathe Repository**: Also uses `breathe` branch
-2. **Submodule or Direct**: Aware can be a submodule or direct dependency
-3. **Synchronized Commits**: Both repos commit to `breathe` branch
-4. **Cross-Repo Changes**: Commit to both repos when changes span both
-
-```bash
-# Example: Update both Aware and Breathe
-cd /path/to/Aware
-git add .
-git commit -m "feat: Add new snapshot format"
-
-cd /path/to/Breathe
-git add .
-git commit -m "feat: Integrate new Aware snapshot format"
-```
-
-### Common Git Tasks
-
-#### Check Branch Status
-```bash
-# Which branch am I on?
-git branch --show-current
-
-# View all branches
-git branch -a
-```
-
-#### View Commit History
-```bash
-# Last 10 commits
-git log --oneline -10
-
-# Commits with full messages
-git log -5
-
-# Show file changes
-git log --stat -3
-```
-
-#### Check Uncommitted Changes
-```bash
-# Summary
-git status
-
-# Detailed diff
-git diff
-
-# Staged changes
-git diff --cached
-```
-
-#### Undo Changes (USE WITH CAUTION)
-```bash
-# Unstage file (keep changes)
-git restore --staged <file>
-
-# Discard changes to file
-git restore <file>
-
-# Discard all changes (DESTRUCTIVE)
-git restore .
-```
-
-### Best Practices for LLMs
-
-1. **Always verify branch**: Check `git branch --show-current` before committing
-2. **Commit frequently**: After each logical unit of work
-3. **Build before commit**: Always run `swift build` first
-4. **Test before commit**: Run `swift test` when adding/changing code
-5. **Clear commit messages**: Explain what and why, not just what
-6. **Co-author attribution**: Include `Co-Authored-By: Claude Sonnet 4.5` in commits
-7. **Check status first**: Run `git status` before staging to review changes
-
-### Emergency Recovery
-
-If you accidentally commit to the wrong branch:
-
-```bash
-# 1. Check where you are
-git branch --show-current
-
-# 2. If on wrong branch (e.g., main), move commit to breathe
-git log -1  # Copy the commit hash
-
-# 3. Switch to breathe
-git checkout breathe
-
-# 4. Cherry-pick the commit
-git cherry-pick <commit-hash>
-
-# 5. Go back and reset wrong branch
-git checkout main
-git reset --hard HEAD~1
-```
-
-**WARNING**: Only do this if the commit hasn't been pushed to remote.
-
-### Summary
-
-**Key Takeaways**:
-- ✅ **Always use `breathe` branch** for all development
-- ✅ **Commit after each logical change** (feature, fix, docs)
-- ✅ **Build and test before committing**
-- ✅ **Use conventional commit format** (feat:, fix:, docs:, etc.)
-- ✅ **Include co-author attribution** for LLM commits
-- ❌ **Never commit to `main`** - production branch only, user merges manually
-- ❌ **Never commit broken builds** or failing tests
-
-## API Reference
-
-### AwareService (Singleton)
-
-Main service for view registration and snapshot generation.
-
+**Main API** (v3.0):
 ```swift
-// Registration
-await Aware.shared.registerView(_ id: String, label: String?, isContainer: Bool, parentId: String?)
-await Aware.shared.unregisterView(_ id: String)
+// Explicit action methods (replaces generic executeAction)
+await Aware.shared.tap(viewId: "button")
+await Aware.shared.typeText(viewId: "field", text: "value")
+await Aware.shared.focus(viewId: "input")
 
-// State tracking
-await Aware.shared.registerState(_ viewId: String, key: String, value: String)
-await Aware.shared.getState(_ viewId: String, key: String) -> String?
-
-// Text binding (for ghost UI typing)
-await Aware.shared.registerTextBinding(_ viewId: String, binding: AwareTextBinding)
-await Aware.shared.typeText(viewId: String, text: String)
+// Type-safe state
+Aware.shared.registerStateTyped("view", key: "isOn", value: .bool(true))
+let isOn = Aware.shared.getStateBool("view", key: "isOn")  // Returns Bool?
 
 // Snapshots
-await Aware.shared.snapshot(format: AwareSnapshotFormat) -> String
-
-// Metadata
-await Aware.shared.registerAction(_ viewId: String, action: AwareActionMetadata)
-await Aware.shared.registerBehavior(_ viewId: String, behavior: AwareBehaviorMetadata)
+let snapshot = await Aware.shared.snapshot(format: .compact)  // ~100 tokens
 ```
 
-### AwareFocusManager (Singleton)
+### Platform Abstraction: AwarePlatform Protocol
 
-Manages keyboard focus navigation.
+**Location**: `AwareCore/Sources/AwareCore/Types/AwareProtocols.swift`
 
-```swift
-await AwareFocusManager.shared.registerFocus(_ viewId: String, binding: Binding<Bool>, order: Int?)
-await AwareFocusManager.shared.focus(_ viewId: String)
-await AwareFocusManager.shared.focusNext()
-await AwareFocusManager.shared.focusPrevious()
-```
-
-### AwareLogger (Singleton)
-
-Lifecycle event logging for debugging.
+Enables platform-specific behavior (iOS gestures, macOS CGEvent simulation):
 
 ```swift
-await AwareLogger.shared.appeared(_ viewId: String, _ label: String?)
-await AwareLogger.shared.disappeared(_ viewId: String)
-await AwareLogger.shared.tapped(_ viewId: String)
-await AwareLogger.shared.stateChanged(_ viewId: String, key: String, value: String)
-```
-
-## Best Practices
-
-### 1. Instrument Early
-Add `.aware*()` modifiers during development, not as an afterthought. This enables continuous testing.
-
-### 2. Use Semantic IDs
-```swift
-// Good: Describes what it is
-.awareButton("save-document-btn", label: "Save")
-
-// Bad: Generic or cryptic
-.awareButton("btn1", label: "Save")
-```
-
-### 3. Add Metadata to Actions
-Help LLMs understand intent:
-```swift
-Button("Sync") { sync() }
-    .awareButton("sync-btn", label: "Sync")
-    .awareMetadata(
-        "sync-btn",
-        description: "Synchronizes local data with remote server",
-        type: .network,
-        apiEndpoint: "/api/sync"
-    )
-```
-
-### 4. Track Important State
-```swift
-Toggle("Dark Mode", isOn: $darkMode)
-    .awareState("settings-darkmode", key: "enabled", value: darkMode)
-```
-
-### 5. Container Hierarchy
-Organize views with containers for better snapshot structure:
-```swift
-VStack {
-    headerView
-    contentView
-    footerView
+@MainActor
+public protocol AwarePlatform: Sendable {
+    var platformName: String { get }
+    func configure(options: [String: Any])
+    func registerAction(_ viewId: String, callback: @escaping @Sendable @MainActor () async -> Void)
+    func executeAction(_ viewId: String) async -> Bool
+    func simulateInput(_ command: AwareInputCommand) async -> AwareInputResult
+    func enhanceSnapshot(_ snapshot: AwareSnapshot) -> AwareSnapshot
 }
-.awareContainer("main-screen", label: "Main Screen")
 ```
 
-## Migration from 1.x to 2.0
+**Implementations**:
+- `AwareIOSPlatform` (`AwareiOS/Sources/AwareiOS/Platform/AwareIOSPlatform.swift`)
+- `AwareMacOSPlatform` (`AwareMacOS/Sources/AwareMacOS/Platform/AwareMacOSPlatform.swift`)
 
-### Breaking Changes
-- `awareTextBinding()` renamed to `awareTextField()` for consistency
-- Focus management now uses `AwareFocusManager` singleton
+### Error Handling (v3.0 Hierarchical)
 
-### New Features
-- `.awareSecureField()` for password fields
-- `.awareMetadata()` for action semantics
-- `.awareBehavior()` for backend metadata
-- Performance budgeting
-- WCAG auditing
+**Location**: `AwareCore/Sources/AwareCore/Errors/AwareErrorHierarchical.swift`
 
-### Migration Steps
+10 error categories for better LLM error routing:
+
 ```swift
-// Old (1.x)
-TextField("Email", text: $email)
-    .awareTextBinding("email", text: $email, label: "Email")
+public enum AwareErrorV3: Error {
+    case registration(RegistrationError)
+    case state(StateError)
+    case action(ActionError)
+    case input(InputError)
+    case query(QueryError)
+    case snapshot(SnapshotError)
+    case animation(AnimationError)
+    case backend(BackendError)
+    case configuration(ConfigurationError)
+    case system(SystemError)
 
-// New (2.0)
-TextField("Email", text: $email)
-    .awareTextField("email", text: $email, label: "Email", isFocused: $focused)
+    public var category: ErrorCategory { ... }
+}
 ```
 
-## Contributing
+**Benefits**: LLMs can route errors by category instead of parsing flat error messages.
 
-Contributions welcome! See CONTRIBUTING.md for guidelines.
+### Modifiers System
 
-## License
+**Core Modifiers** (`AwareCore/Sources/AwareCore/Services/AwareModifiers.swift`):
+- `.aware()` - Basic view registration
+- `.awareContainer()` - Group related views
+- `.awareButton()` - Track button taps
+- `.awareTextField()` - Track text input with focus
+- `.awareSecureField()` - Track password input
+- `.awareState()` - Track any state value
+- `.awareMetadata()` - Add action semantics
+- `.awareBehavior()` - Add backend behavior metadata
 
-MIT License - see LICENSE file for details.
+**iOS-Specific Modifiers** (`AwareiOS/Sources/AwareiOS/Modifiers/UIConvenienceModifiers.swift`):
+- `.uiTappable()` - Direct action callback (ghost UI)
+- `.uiTextField()` - Enhanced text field with typeText support
+- `.uiLoadingState()` - Loading with progress
+- `.uiErrorState()` - Error with retry capability
+- `.uiValidationState()` - Form validation state
+- `.uiNetworkState()` - Network connectivity
+- And 8 more convenience modifiers
 
-## Links
+### UIViewID Enum (iOS Stability)
 
-- [GitHub Repository](https://github.com/cogitolabs/Aware)
-- [Documentation](https://docs.cogito.cv/aware)
-- [Breathe IDE](https://breathe.cogito.cv) - Full ecosystem integration
-- [Issue Tracker](https://github.com/cogitolabs/Aware/issues)
+**Location**: `AwareiOS/Sources/AwareiOS/Types/UIViewID.swift`
+
+Predefined stable identifiers prevent ID drift:
+
+```swift
+public enum UIViewID: String, CaseIterable {
+    // Authentication
+    case signInView = "signInView"
+    case emailField = "emailField"
+    case passwordField = "passwordField"
+    case signInButton = "signInButton"
+
+    // Navigation
+    case tabBar = "tabBar"
+    case homeTab = "homeTab"
+
+    // ... 30+ predefined IDs
+
+    // Scoping helpers
+    public func scoped(_ suffix: String) -> String
+    public func indexed(_ index: Int) -> String
+    public func suffixed(_ suffix: String) -> String
+
+    // Custom IDs
+    public static func custom(_ id: String) -> String
+}
+```
+
+### Documentation System
+
+**Location**: `AwareCore/Sources/AwareCore/Documentation/`
+
+Self-documenting API with 5 export formats:
+
+| Format | Tokens | Use Case |
+|--------|--------|----------|
+| `compact` | 1000-1200 | LLM planning |
+| `jsonSchema` | 1400-1600 | Validation, queries |
+| `mermaid` | 400-600 | Breathe IDE visualization |
+| `markdown` | 2500-3500 | Human-readable docs |
+| `openapi` | 2000-3000 | External tool integration |
+
+**Key Files**:
+- `AwareAPIRegistry.swift` - Method/modifier/type metadata registry
+- `AwareDocumentationService.swift` - Documentation export orchestration
+- `Generators/` - Format-specific generators (Markdown, JSON Schema, Mermaid, OpenAPI, Compact)
+
+### Performance Monitoring
+
+**Location**: `AwareCore/Sources/AwareCore/Performance/`
+
+Built-in performance budgeting for action speeds:
+
+```swift
+// Measure action performance
+let metrics = await AwarePerformanceMonitor.shared.measure {
+    await Aware.shared.typeText(viewId: "search", text: "query")
+}
+
+// Assert within budget
+await AwarePerformanceAsserter.shared.assertWithinBudget(
+    metrics,
+    budget: .standard  // .lenient (500ms), .standard (250ms), .strict (100ms)
+)
+```
+
+**Budget Presets** (`AwareCore/Sources/AwareCore/Performance/AwarePerformanceBudget.swift`):
+- `.lenient`: 500ms (complex operations)
+- `.standard`: 250ms (recommended default)
+- `.strict`: 100ms (instant feedback)
+
+## Common Development Tasks
+
+### Adding a New Modifier
+
+```bash
+# 1. Add to AwareCore (cross-platform)
+touch AwareCore/Sources/AwareCore/Services/AwareMyModifier.swift
+
+# 2. Implement modifier
+# ... see existing modifiers for pattern ...
+
+# 3. Build
+swift build --package-path AwareCore/
+
+# 4. Add tests
+touch AwareCore/Tests/AwareCoreTests/AwareMyModifierTests.swift
+
+# 5. Test
+swift test --package-path AwareCore/
+
+# 6. Document in registry
+# Edit: AwareCore/Sources/AwareCore/Documentation/Registry/CoreModifiersRegistry.swift
+```
+
+### Adding iOS-Specific Feature
+
+```bash
+# 1. Navigate to iOS package
+cd AwareiOS/
+
+# 2. Add implementation
+touch Sources/AwareiOS/Modifiers/MyIOSFeature.swift
+
+# 3. Build
+swift build
+
+# 4. Test
+swift test
+
+# 5. Test integration
+cd ..
+swift build
+swift test --filter AwareiOSTests
+```
+
+### Updating Documentation
+
+```bash
+# 1. Update README.md for user-facing changes
+vim README.md
+
+# 2. Update CLAUDE.md for LLM guidance
+vim CLAUDE.md
+
+# 3. Update CHANGELOG.md
+vim CHANGELOG.md
+
+# 4. Commit
+git add README.md CLAUDE.md CHANGELOG.md
+git commit -m "docs: Update documentation for new feature"
+```
+
+## Build Troubleshooting
+
+### SPM Cache Corruption
+
+If build errors or missing dependencies:
+
+```bash
+# 1. Close Xcode (if open)
+
+# 2. Clear all SPM caches
+rm -rf ~/Library/Developer/Xcode/DerivedData
+rm -rf ~/Library/Caches/org.swift.swiftpm
+rm -rf .build
+rm -rf Package.resolved
+
+# 3. Rebuild from scratch
+swift package reset
+swift build
+```
+
+### Dependency Resolution Issues
+
+```bash
+# Update all dependencies
+swift package update
+
+# Resolve specific dependency conflicts
+swift package resolve
+
+# Verify dependency tree
+swift package show-dependencies
+```
+
+### Platform-Specific Build Issues
+
+```bash
+# Build only iOS
+swift build --package-path AwareiOS/
+
+# Build only macOS
+swift build --package-path AwareMacOS/
+
+# Check for platform-specific issues
+swift build --triple arm64-apple-ios17.0
+swift build --triple arm64-apple-macosx14.0
+```
+
+### Test Failures
+
+```bash
+# Run tests with verbose output
+swift test --verbose
+
+# Run specific failing test
+swift test --filter FailingTestName
+
+# Check for concurrency issues (v3.0 uses StrictConcurrency)
+swift build -Xswiftc -strict-concurrency=complete
+```
+
+## Breathe Integration
+
+This is the **standalone** Aware framework. For **Breathe IDE users**, enhanced features are available:
+
+**Breathe-Specific Features**:
+- **MCP Tools**: 13+ tools for Claude Code integration
+- **Snapshot Format Storage**: SQLite persistence in `~/.breathe/index.sqlite`
+- **Multi-App Testing**: Test any macOS app or iOS Simulator
+- **Intelligence**: Auto-diagnosis, error recovery, test generation
+- **Cost Tracking**: Monitor AI development token costs
+- **Overnight Execution**: Queue multi-day work sprints
+
+**Database Tables** (when used with Breathe):
+- `aware_snapshot_formats` - Format metadata (token counts, use cases)
+- `aware_preferences` - Per-project snapshot preferences
+- `aware_snapshot_history` - Audit trail of captures
+
+**MCP Tools** (when used with Breathe):
+```
+snapshot_formats_list         # List available formats with metadata
+snapshot_preferences_get       # Get current project preferences
+snapshot_preferences_set       # Update preferences
+snapshot_history_get           # View capture history
+snapshot_history_stats         # Get statistics and savings
+snapshot_history_record        # Record snapshot (internal)
+snapshot_recommend_format      # AI-powered format recommendation
+```
+
+See `/Users/adrian/Developer/cogito/Cook/CLAUDE.md` for full Breathe ecosystem context.
+
+## Key Design Patterns
+
+### 1. Platform Abstraction
+
+Core framework (`AwareCore`) defines protocols. Platform packages (`AwareiOS`, `AwareMacOS`) implement them:
+
+```swift
+// Core protocol (AwareCore)
+public protocol AwarePlatform: Sendable {
+    func executeAction(_ viewId: String) async -> Bool
+}
+
+// iOS implementation (AwareiOS)
+public final class AwareIOSPlatform: AwarePlatform {
+    public func executeAction(_ viewId: String) async -> Bool {
+        // iOS-specific direct action callback
+    }
+}
+
+// macOS implementation (AwareMacOS)
+public final class AwareMacOSPlatform: AwarePlatform {
+    public func executeAction(_ viewId: String) async -> Bool {
+        // macOS-specific CGEvent simulation
+    }
+}
+```
+
+### 2. Type-Safe State (v3.0)
+
+Replace string-based state with typed enum:
+
+```swift
+// Before (v2.x)
+registerState("view", key: "isOn", value: "true")  // String confusion
+
+// After (v3.0)
+registerStateTyped("view", key: "isOn", value: .bool(true))
+let isOn = getStateBool("view", key: "isOn")  // Returns Bool?
+```
+
+### 3. Hierarchical Errors (v3.0)
+
+Category-based error routing for LLMs:
+
+```swift
+do {
+    try await Aware.shared.tap(viewId: "button")
+} catch AwareErrorV3.action(let actionError) {
+    // Handle all action-related errors
+} catch AwareErrorV3.state(let stateError) {
+    // Handle all state-related errors
+}
+```
+
+### 4. Modifiers as Registration
+
+SwiftUI modifiers trigger framework registration:
+
+```swift
+Button("Save") { save() }
+    .awareButton("save-btn", label: "Save")
+    // ↑ Registers button in viewRegistry, sets up tap callback
+```
+
+### 5. Staleness Detection
+
+Automatically detect when props change but state doesn't follow:
+
+```swift
+// Framework tracks prop → state bindings
+registerPropStateBinding("view", propKey: "value", stateKey: "text", ...)
+
+// If prop updates but state doesn't within 300ms → warning
+stalenessWarnings.append(...)
+```
+
+## v3.0 LLM-First API Changes
+
+Week 3 introduced major improvements for LLM consumption:
+
+### 1. Explicit Action Methods
+
+**Before (v2.x)**: Generic `executeAction()` with string parameters
+**After (v3.0)**: 21 type-safe methods
+
+```swift
+// Tap actions
+await Aware.shared.tap(viewId: "button")
+await Aware.shared.longPress(viewId: "button", duration: 1.0)
+await Aware.shared.doubleTap(viewId: "button")
+
+// Text actions
+await Aware.shared.setText(viewId: "field", text: "value")
+await Aware.shared.appendText(viewId: "field", text: " more")
+await Aware.shared.typeText(viewId: "field", text: "value")
+
+// Focus actions
+await Aware.shared.focus(viewId: "input")
+await Aware.shared.focusNextField()
+
+// Navigation actions
+await Aware.shared.navigateBack()
+await Aware.shared.dismissModal()
+
+// Query actions
+let elements = await Aware.shared.find(label: "Login")
+let snapshot = await Aware.shared.snapshot(format: .compact)
+
+// Assertions
+let exists = await Aware.shared.assertExists(viewId: "button")
+let visible = await Aware.shared.assertVisible(viewId: "button")
+```
+
+### 2. Token Efficiency Improvements
+
+- **Snapshot API**: Defaults to `.compact` (50% token savings)
+- **State Representation**: 3-8 tokens vs 10-15 for verbose
+- **Error Messages**: 15-20 tokens vs 40-60 for flat errors
+
+### 3. Enhanced Metadata
+
+Rich semantic information for LLM decision-making:
+
+```swift
+.awareMetadata(
+    "action-id",
+    actionDescription: "Saves document to cloud",
+    actionType: .network,
+    expectedDurationMs: 1500,
+    preconditions: ["document.hasChanges", "user.isOnline"],
+    riskLevel: .medium,           // .low, .medium, .high
+    impactLevel: .major,          // .minor, .moderate, .major
+    isIdempotent: true,
+    maxRetries: 3
+)
+```
+
+## Installation (for External Projects)
+
+If using Aware in your own Swift projects:
+
+```swift
+// Package.swift
+dependencies: [
+    .package(url: "https://github.com/adrian-mei/Aware", from: "3.0.0-beta")
+]
+
+// In your target
+.target(
+    name: "MyApp",
+    dependencies: [
+        "Aware"  // Auto-imports correct platform (iOS/macOS)
+    ]
+)
+```
+
+## Quick Reference
+
+### Essential Build Commands
+
+```bash
+swift build                      # Build all packages
+swift test                       # Run all tests
+swift test --filter NameTests    # Run specific test target
+swift package clean              # Clean build artifacts
+swift package reset              # Reset package cache
+```
+
+### Essential Git Commands
+
+```bash
+git branch --show-current        # Verify on "breathe" branch
+git checkout breathe             # Switch to breathe branch
+git status                       # Check uncommitted changes
+git add .                        # Stage all changes
+git commit -m "type: message"    # Commit with conventional format
+git log --oneline -10            # View recent commits
+```
+
+### Quick Debugging
+
+```bash
+# Check package health
+swift package show-dependencies
+swift package dump-package
+
+# Verify builds
+swift build --verbose
+
+# Run specific test
+swift test --filter TestName --verbose
+
+# Clear all caches (nuclear option)
+rm -rf .build ~/Library/Developer/Xcode/DerivedData ~/Library/Caches/org.swift.swiftpm
+swift package reset
+```
 
 ---
 
 **Version**: 3.0.0-beta
-**Last Updated**: 2026-01-13
-**Minimum Requirements**: iOS 17+, macOS 14+
+**Last Updated**: 2025-01-13
+**Minimum Requirements**: Swift 5.9+, iOS 17+, macOS 14+
