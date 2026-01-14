@@ -6,7 +6,7 @@
 //
 
 import XCTest
-@testable import Aware
+@testable import AwareCore
 
 final class AwareSnapshotTests: XCTestCase {
 

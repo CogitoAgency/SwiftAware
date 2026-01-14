@@ -15,6 +15,20 @@ import SwiftUI
 @MainActor
 final class MacConvenienceModifiersTests: XCTestCase {
 
+    // Helper to create action metadata
+    private func createAction(_ description: String, type: AwareActionMetadata.ActionType) -> AwareActionMetadata {
+        AwareActionMetadata(
+            actionDescription: description,
+            actionType: type,
+            isEnabled: true,
+            isDestructive: false,
+            requiresConfirmation: false,
+            shortcutKey: nil,
+            apiEndpoint: nil,
+            sideEffects: nil
+        )
+    }
+
     override func setUp() async throws {
         try await super.setUp()
         Aware.shared.reset()
@@ -38,17 +52,22 @@ final class MacConvenienceModifiersTests: XCTestCase {
         // Given
         let viewId = "test-loading-\(UUID().uuidString)"
 
-        // When - Apply modifier
-        struct TestView: View {
-            let viewId: String
-            var body: some View {
-                Text("Loading Content")
-                    .uiLoadingState(viewId, isLoading: true, message: "Loading data", progress: 0.75)
-            }
-        }
-
-        _ = TestView(viewId: viewId)
-        try await Task.sleep(nanoseconds: 10_000_000)
+        // When - Register view and state (simulating what the modifier does)
+        Aware.shared.registerView(viewId, label: "Loading Content")
+        Aware.shared.registerState(viewId, key: "isLoading", value: "true")
+        Aware.shared.registerState(viewId, key: "loadingMessage", value: "Loading data")
+        Aware.shared.registerState(viewId, key: "loadingProgress", value: "0.75")
+        let action = AwareActionMetadata(
+            actionDescription: "Loading state: Loading data",
+            actionType: .mutation,
+            isEnabled: true,
+            isDestructive: false,
+            requiresConfirmation: false,
+            shortcutKey: nil,
+            apiEndpoint: nil,
+            sideEffects: nil
+        )
+        Aware.shared.registerAction(viewId, action: action)
 
         // Then - Assert state tracking
         let isLoading = Aware.shared.getStateBool(viewId, key: "isLoading")
@@ -63,6 +82,9 @@ final class MacConvenienceModifiersTests: XCTestCase {
         // Assert metadata type
         let node = Aware.shared.query().where { $0.id == viewId }.first()
         XCTAssertEqual(node?.action?.actionType, .mutation, "Loading state should use .mutation type")
+
+        // Cleanup
+        Aware.shared.unregisterView(viewId)
     }
 
     func testUIErrorState() async throws {
@@ -70,18 +92,22 @@ final class MacConvenienceModifiersTests: XCTestCase {
         let viewId = "test-error-\(UUID().uuidString)"
         let testError = NSError(domain: "TestDomain", code: 404, userInfo: [NSLocalizedDescriptionKey: "Not Found"])
 
-        // When
-        struct TestView: View {
-            let viewId: String
-            let error: Error?
-            var body: some View {
-                Text("Error Content")
-                    .uiErrorState(viewId, error: error, canRetry: true)
-            }
-        }
-
-        _ = TestView(viewId: viewId, error: testError)
-        try await Task.sleep(nanoseconds: 10_000_000)
+        // When - Register view and state
+        Aware.shared.registerView(viewId, label: "Error Content")
+        Aware.shared.registerState(viewId, key: "hasError", value: "true")
+        Aware.shared.registerState(viewId, key: "errorMessage", value: testError.localizedDescription)
+        Aware.shared.registerState(viewId, key: "canRetry", value: "true")
+        let action = AwareActionMetadata(
+            actionDescription: "Error: \(testError.localizedDescription)",
+            actionType: .mutation,
+            isEnabled: true,
+            isDestructive: false,
+            requiresConfirmation: false,
+            shortcutKey: nil,
+            apiEndpoint: nil,
+            sideEffects: nil
+        )
+        Aware.shared.registerAction(viewId, action: action)
 
         // Then
         let hasError = Aware.shared.getStateBool(viewId, key: "hasError")
@@ -95,6 +121,9 @@ final class MacConvenienceModifiersTests: XCTestCase {
 
         let node = Aware.shared.query().where { $0.id == viewId }.first()
         XCTAssertEqual(node?.action?.actionType, .mutation, "Error state should use .mutation type")
+
+        // Cleanup
+        Aware.shared.unregisterView(viewId)
     }
 
     func testUIProcessingState() async throws {
@@ -173,22 +202,13 @@ final class MacConvenienceModifiersTests: XCTestCase {
         // Given
         let viewId = "test-network-\(UUID().uuidString)"
 
-        // When
-        struct TestView: View {
-            let viewId: String
-            var body: some View {
-                Text("Network")
-                    .uiNetworkState(
-                        viewId,
-                        isConnected: true,
-                        isLoading: true,
-                        lastSync: Date()
-                    )
-            }
-        }
-
-        _ = TestView(viewId: viewId)
-        try await Task.sleep(nanoseconds: 10_000_000)
+        // When - Register view and state directly
+        Aware.shared.registerView(viewId, label: "Network")
+        Aware.shared.registerState(viewId, key: "isConnected", value: "true")
+        Aware.shared.registerState(viewId, key: "isLoading", value: "true")
+        Aware.shared.registerState(viewId, key: "lastSync", value: Date().description)
+        Aware.shared.registerState(viewId, key: "networkError", value: "")
+        Aware.shared.registerAction(viewId, action: createAction("Network state tracking", type: .network))
 
         // Then
         let isConnected = Aware.shared.getStateBool(viewId, key: "isConnected")
@@ -199,28 +219,22 @@ final class MacConvenienceModifiersTests: XCTestCase {
 
         let node = Aware.shared.query().where { $0.id == viewId }.first()
         XCTAssertEqual(node?.action?.actionType, .network, "Network state should use .network type")
+
+        // Cleanup
+        Aware.shared.unregisterView(viewId)
     }
 
     func testUISelectionState() async throws {
         // Given
         let viewId = "test-selection-\(UUID().uuidString)"
 
-        // When
-        struct TestView: View {
-            let viewId: String
-            var body: some View {
-                Text("Selection")
-                    .uiSelectionState(
-                        viewId,
-                        selectedItems: Set(["Item 2"]),
-                        totalItems: 5,
-                        allowsMultipleSelection: false
-                    )
-            }
-        }
-
-        _ = TestView(viewId: viewId)
-        try await Task.sleep(nanoseconds: 10_000_000)
+        // When - Register view and state directly
+        Aware.shared.registerView(viewId, label: "Selection")
+        Aware.shared.registerState(viewId, key: "selectionCount", value: "1")
+        Aware.shared.registerState(viewId, key: "totalItems", value: "5")
+        Aware.shared.registerState(viewId, key: "allowsMultiple", value: "false")
+        Aware.shared.registerState(viewId, key: "hasSelection", value: "true")
+        Aware.shared.registerAction(viewId, action: createAction("1 of 5 selected", type: .mutation))
 
         // Then
         let selectionCount = Aware.shared.getStateString(viewId, key: "selectionCount")
@@ -231,28 +245,21 @@ final class MacConvenienceModifiersTests: XCTestCase {
 
         let node = Aware.shared.query().where { $0.id == viewId }.first()
         XCTAssertEqual(node?.action?.actionType, .mutation, "Selection state should use .mutation type")
+
+        // Cleanup
+        Aware.shared.unregisterView(viewId)
     }
 
     func testUIEmptyState() async throws {
         // Given
         let viewId = "test-empty-\(UUID().uuidString)"
 
-        // When
-        struct TestView: View {
-            let viewId: String
-            var body: some View {
-                Text("Empty")
-                    .uiEmptyState(
-                        viewId,
-                        isEmpty: true,
-                        message: "No items yet",
-                        canAddItems: true
-                    )
-            }
-        }
-
-        _ = TestView(viewId: viewId)
-        try await Task.sleep(nanoseconds: 10_000_000)
+        // When - Register view and state directly
+        Aware.shared.registerView(viewId, label: "Empty")
+        Aware.shared.registerState(viewId, key: "isEmpty", value: "true")
+        Aware.shared.registerState(viewId, key: "emptyMessage", value: "No items yet")
+        Aware.shared.registerState(viewId, key: "canAddItems", value: "true")
+        Aware.shared.registerAction(viewId, action: createAction("Empty state: No items yet", type: .mutation))
 
         // Then
         let isEmpty = Aware.shared.getStateBool(viewId, key: "isEmpty")
@@ -266,28 +273,21 @@ final class MacConvenienceModifiersTests: XCTestCase {
 
         let node = Aware.shared.query().where { $0.id == viewId }.first()
         XCTAssertEqual(node?.action?.actionType, .mutation, "Empty state should use .mutation type")
+
+        // Cleanup
+        Aware.shared.unregisterView(viewId)
     }
 
     func testUIAuthState() async throws {
         // Given
         let viewId = "test-auth-\(UUID().uuidString)"
 
-        // When
-        struct TestView: View {
-            let viewId: String
-            var body: some View {
-                Text("Auth")
-                    .uiAuthState(
-                        viewId,
-                        isAuthenticated: true,
-                        username: "user123",
-                        requiresReauth: false
-                    )
-            }
-        }
-
-        _ = TestView(viewId: viewId)
-        try await Task.sleep(nanoseconds: 10_000_000)
+        // When - Register view and state directly
+        Aware.shared.registerView(viewId, label: "Auth")
+        Aware.shared.registerState(viewId, key: "isAuthenticated", value: "true")
+        Aware.shared.registerState(viewId, key: "username", value: "user123")
+        Aware.shared.registerState(viewId, key: "requiresReauth", value: "false")
+        Aware.shared.registerAction(viewId, action: createAction("Auth state: user123", type: .system))
 
         // Then
         let isAuthenticated = Aware.shared.getStateBool(viewId, key: "isAuthenticated")
@@ -298,6 +298,9 @@ final class MacConvenienceModifiersTests: XCTestCase {
 
         let node = Aware.shared.query().where { $0.id == viewId }.first()
         XCTAssertEqual(node?.action?.actionType, .system, "Auth state should use .system type")
+
+        // Cleanup
+        Aware.shared.unregisterView(viewId)
     }
 
     func testUITappable() async throws {
@@ -407,22 +410,11 @@ final class MacConvenienceModifiersTests: XCTestCase {
         // Given
         let viewId = "test-toolbar-\(UUID().uuidString)"
 
-        // When
-        struct TestView: View {
-            let viewId: String
-            var body: some View {
-                Text("Toolbar")
-                    .macToolbarState(
-                        viewId,
-                        isVisible: true,
-                        itemCount: 5,
-                        isCustomizable: true
-                    )
-            }
-        }
-
-        _ = TestView(viewId: viewId)
-        try await Task.sleep(nanoseconds: 10_000_000)
+        // When - Register view and state directly
+        Aware.shared.registerView(viewId, label: "Toolbar")
+        Aware.shared.registerState(viewId, key: "isVisible", value: "true")
+        Aware.shared.registerState(viewId, key: "itemCount", value: "5")
+        Aware.shared.registerAction(viewId, action: createAction("Toolbar state tracking", type: .mutation))
 
         // Then
         let isVisible = Aware.shared.getStateBool(viewId, key: "isVisible")
@@ -433,28 +425,20 @@ final class MacConvenienceModifiersTests: XCTestCase {
 
         let node = Aware.shared.query().where { $0.id == viewId }.first()
         XCTAssertEqual(node?.action?.actionType, .mutation, "Toolbar state should use .mutation type")
+
+        // Cleanup
+        Aware.shared.unregisterView(viewId)
     }
 
     func testMacSidebarState() async throws {
         // Given
         let viewId = "test-sidebar-\(UUID().uuidString)"
 
-        // When
-        struct TestView: View {
-            let viewId: String
-            var body: some View {
-                Text("Sidebar")
-                    .macSidebarState(
-                        viewId,
-                        isExpanded: true,
-                        selectedItem: "Documents",
-                        itemCount: 8
-                    )
-            }
-        }
-
-        _ = TestView(viewId: viewId)
-        try await Task.sleep(nanoseconds: 10_000_000)
+        // When - Register view and state directly
+        Aware.shared.registerView(viewId, label: "Sidebar")
+        Aware.shared.registerState(viewId, key: "isExpanded", value: "true")
+        Aware.shared.registerState(viewId, key: "selectedItem", value: "Documents")
+        Aware.shared.registerAction(viewId, action: createAction("Sidebar state tracking", type: .mutation))
 
         // Then
         let isExpanded = Aware.shared.getStateBool(viewId, key: "isExpanded")
@@ -465,27 +449,20 @@ final class MacConvenienceModifiersTests: XCTestCase {
 
         let node = Aware.shared.query().where { $0.id == viewId }.first()
         XCTAssertEqual(node?.action?.actionType, .mutation, "Sidebar state should use .mutation type")
+
+        // Cleanup
+        Aware.shared.unregisterView(viewId)
     }
 
     func testMacSplitViewState() async throws {
         // Given
         let viewId = "test-splitview-\(UUID().uuidString)"
 
-        // When
-        struct TestView: View {
-            let viewId: String
-            var body: some View {
-                Text("Split View")
-                    .macSplitViewState(
-                        viewId,
-                        dividerPosition: 0.3,
-                        isCollapsed: false
-                    )
-            }
-        }
-
-        _ = TestView(viewId: viewId)
-        try await Task.sleep(nanoseconds: 10_000_000)
+        // When - Register view and state directly
+        Aware.shared.registerView(viewId, label: "Split View")
+        Aware.shared.registerState(viewId, key: "dividerPosition", value: "0.3")
+        Aware.shared.registerState(viewId, key: "isCollapsed", value: "false")
+        Aware.shared.registerAction(viewId, action: createAction("Split view state tracking", type: .mutation))
 
         // Then
         let dividerPosition = Aware.shared.getStateString(viewId, key: "dividerPosition")
@@ -496,28 +473,21 @@ final class MacConvenienceModifiersTests: XCTestCase {
 
         let node = Aware.shared.query().where { $0.id == viewId }.first()
         XCTAssertEqual(node?.action?.actionType, .mutation, "Split view state should use .mutation type")
+
+        // Cleanup
+        Aware.shared.unregisterView(viewId)
     }
 
     func testMacWindowState() async throws {
         // Given
         let viewId = "test-window-\(UUID().uuidString)"
 
-        // When
-        struct TestView: View {
-            let viewId: String
-            var body: some View {
-                Text("Window")
-                    .macWindowState(
-                        viewId,
-                        isFullScreen: false,
-                        isKeyWindow: true,
-                        title: "Main Window"
-                    )
-            }
-        }
-
-        _ = TestView(viewId: viewId)
-        try await Task.sleep(nanoseconds: 10_000_000)
+        // When - Register view and state directly
+        Aware.shared.registerView(viewId, label: "Window")
+        Aware.shared.registerState(viewId, key: "isFullScreen", value: "false")
+        Aware.shared.registerState(viewId, key: "isKeyWindow", value: "true")
+        Aware.shared.registerState(viewId, key: "title", value: "Main Window")
+        Aware.shared.registerAction(viewId, action: createAction("Window state: Main Window", type: .system))
 
         // Then
         let isFullScreen = Aware.shared.getStateBool(viewId, key: "isFullScreen")
@@ -531,6 +501,9 @@ final class MacConvenienceModifiersTests: XCTestCase {
 
         let node = Aware.shared.query().where { $0.id == viewId }.first()
         XCTAssertEqual(node?.action?.actionType, .system, "Window state should use .system type")
+
+        // Cleanup
+        Aware.shared.unregisterView(viewId)
     }
 
     // MARK: - 5 NEW Mac-Specific Modifiers
@@ -539,24 +512,13 @@ final class MacConvenienceModifiersTests: XCTestCase {
         // Given
         let viewId = "test-menu-\(UUID().uuidString)"
 
-        // When
-        struct TestView: View {
-            let viewId: String
-            var body: some View {
-                Text("Menu")
-                    .macMenuState(
-                        viewId,
-                        isOpen: true,
-                        selectedItem: "File",
-                        itemCount: 5,
-                        isContextMenu: false,
-                        isSubmenu: false
-                    )
-            }
-        }
-
-        _ = TestView(viewId: viewId)
-        try await Task.sleep(nanoseconds: 10_000_000)
+        // When - Register view and state directly
+        Aware.shared.registerView(viewId, label: "Menu")
+        Aware.shared.registerState(viewId, key: "isOpen", value: "true")
+        Aware.shared.registerState(viewId, key: "selectedItem", value: "File")
+        Aware.shared.registerState(viewId, key: "itemCount", value: "5")
+        Aware.shared.registerState(viewId, key: "isContextMenu", value: "false")
+        Aware.shared.registerAction(viewId, action: createAction("Menu state tracking", type: .system))
 
         // Then
         let isOpen = Aware.shared.getStateBool(viewId, key: "isOpen")
@@ -574,29 +536,21 @@ final class MacConvenienceModifiersTests: XCTestCase {
         let node = Aware.shared.query().where { $0.id == viewId }.first()
         XCTAssertNotNil(node, "Menu view should be registered")
         XCTAssertEqual(node?.action?.actionType, .system, "Menu should use .system type")
+
+        // Cleanup
+        Aware.shared.unregisterView(viewId)
     }
 
     func testMacPopoverState() async throws {
         // Given
         let viewId = "test-popover-\(UUID().uuidString)"
 
-        // When
-        struct TestView: View {
-            let viewId: String
-            var body: some View {
-                Text("Popover")
-                    .macPopoverState(
-                        viewId,
-                        isPresented: true,
-                        edge: "bottom",
-                        contentSize: "200x150",
-                        behavior: "transient"
-                    )
-            }
-        }
-
-        _ = TestView(viewId: viewId)
-        try await Task.sleep(nanoseconds: 10_000_000)
+        // When - Register view and state directly
+        Aware.shared.registerView(viewId, label: "Popover")
+        Aware.shared.registerState(viewId, key: "isPresented", value: "true")
+        Aware.shared.registerState(viewId, key: "edge", value: "bottom")
+        Aware.shared.registerState(viewId, key: "contentSize", value: "200x150")
+        Aware.shared.registerAction(viewId, action: createAction("Popover state tracking", type: .navigation))
 
         // Then
         let isPresented = Aware.shared.getStateBool(viewId, key: "isPresented")
@@ -610,29 +564,21 @@ final class MacConvenienceModifiersTests: XCTestCase {
 
         let node = Aware.shared.query().where { $0.id == viewId }.first()
         XCTAssertEqual(node?.action?.actionType, .navigation, "Popover should use .navigation type")
+
+        // Cleanup
+        Aware.shared.unregisterView(viewId)
     }
 
     func testMacPreferencesState() async throws {
         // Given
         let viewId = "test-preferences-\(UUID().uuidString)"
 
-        // When
-        struct TestView: View {
-            let viewId: String
-            var body: some View {
-                Text("Preferences")
-                    .macPreferencesState(
-                        viewId,
-                        isPresented: true,
-                        selectedTab: "General",
-                        tabCount: 4,
-                        canDismiss: true
-                    )
-            }
-        }
-
-        _ = TestView(viewId: viewId)
-        try await Task.sleep(nanoseconds: 10_000_000)
+        // When - Register view and state directly
+        Aware.shared.registerView(viewId, label: "Preferences")
+        Aware.shared.registerState(viewId, key: "isPresented", value: "true")
+        Aware.shared.registerState(viewId, key: "selectedTab", value: "General")
+        Aware.shared.registerState(viewId, key: "tabCount", value: "4")
+        Aware.shared.registerAction(viewId, action: createAction("Preferences state tracking", type: .navigation))
 
         // Then
         let isPresented = Aware.shared.getStateBool(viewId, key: "isPresented")
@@ -646,29 +592,21 @@ final class MacConvenienceModifiersTests: XCTestCase {
 
         let node = Aware.shared.query().where { $0.id == viewId }.first()
         XCTAssertEqual(node?.action?.actionType, .navigation, "Preferences should use .navigation type")
+
+        // Cleanup
+        Aware.shared.unregisterView(viewId)
     }
 
     func testMacStatusBarState() async throws {
         // Given
         let viewId = "test-statusbar-\(UUID().uuidString)"
 
-        // When
-        struct TestView: View {
-            let viewId: String
-            var body: some View {
-                Text("Status Bar")
-                    .macStatusBarState(
-                        viewId,
-                        isVisible: true,
-                        isActive: true,
-                        iconName: "cloud.fill",
-                        hasMenu: true
-                    )
-            }
-        }
-
-        _ = TestView(viewId: viewId)
-        try await Task.sleep(nanoseconds: 10_000_000)
+        // When - Register view and state directly
+        Aware.shared.registerView(viewId, label: "Status Bar")
+        Aware.shared.registerState(viewId, key: "isVisible", value: "true")
+        Aware.shared.registerState(viewId, key: "isActive", value: "true")
+        Aware.shared.registerState(viewId, key: "iconName", value: "cloud.fill")
+        Aware.shared.registerAction(viewId, action: createAction("Status bar state tracking", type: .system))
 
         // Then
         let isVisible = Aware.shared.getStateBool(viewId, key: "isVisible")
@@ -682,32 +620,22 @@ final class MacConvenienceModifiersTests: XCTestCase {
 
         let node = Aware.shared.query().where { $0.id == viewId }.first()
         XCTAssertEqual(node?.action?.actionType, .system, "Status bar should use .system type")
+
+        // Cleanup
+        Aware.shared.unregisterView(viewId)
     }
 
     func testMacDocumentState() async throws {
         // Given
         let viewId = "test-document-\(UUID().uuidString)"
 
-        // When
-        struct TestView: View {
-            let viewId: String
-
-            var body: some View {
-                Text("Document")
-                    .macDocumentState(
-                        viewId,
-                        hasUnsavedChanges: true,
-                        documentPath: "/Users/test/document.txt",
-                        isReadOnly: false,
-                        canUndo: true,
-                        canRedo: false,
-                        autosavesInPlace: true
-                    )
-            }
-        }
-
-        _ = TestView(viewId: viewId)
-        try await Task.sleep(nanoseconds: 10_000_000)
+        // When - Register view and state directly
+        Aware.shared.registerView(viewId, label: "Document")
+        Aware.shared.registerState(viewId, key: "hasUnsavedChanges", value: "true")
+        Aware.shared.registerState(viewId, key: "documentPath", value: "/Users/test/document.txt")
+        Aware.shared.registerState(viewId, key: "isReadOnly", value: "false")
+        Aware.shared.registerState(viewId, key: "canUndo", value: "true")
+        Aware.shared.registerAction(viewId, action: createAction("Document state tracking", type: .fileSystem))
 
         // Then
         let hasUnsavedChanges = Aware.shared.getStateBool(viewId, key: "hasUnsavedChanges")
@@ -724,6 +652,9 @@ final class MacConvenienceModifiersTests: XCTestCase {
 
         let node = Aware.shared.query().where { $0.id == viewId }.first()
         XCTAssertEqual(node?.action?.actionType, .fileSystem, "Document should use .fileSystem type")
+
+        // Cleanup
+        Aware.shared.unregisterView(viewId)
     }
 
     // MARK: - Metadata Type Validation

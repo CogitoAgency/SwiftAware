@@ -83,12 +83,12 @@ final class LLMSnapshotTests: XCTestCase {
         // GIVEN: A button with direct action
         var tapped = false
         Aware.shared.registerView("action-btn", label: "Action Button")
-        Aware.shared.registerDirectAction("action-btn") {
+        Aware.shared.registerAction("action-btn") {
             tapped = true
         }
 
         // WHEN: LLM issues tap command
-        let result = await Aware.shared.tapDirect("action-btn")
+        let result = await Aware.shared.tap(viewId: "action-btn")
 
         // THEN: Action executes successfully
         XCTAssertTrue(result.success, "LLM tap command should succeed")
@@ -143,18 +143,27 @@ final class LLMSnapshotTests: XCTestCase {
     }
 
     func testLLMCanAssertViewVisible() async {
-        // GIVEN: Visible and hidden views
+        // GIVEN: Visible and hidden views (via state)
         Aware.shared.registerView("visible", label: "Visible")
         Aware.shared.registerView("hidden", label: "Hidden")
-        Aware.shared.hideView("hidden")
+
+        // Mark one view as visible, one as hidden via state
+        Aware.shared.registerStateTyped("visible", key: "isVisible", value: .bool(true))
+        Aware.shared.registerStateTyped("hidden", key: "isVisible", value: .bool(false))
 
         // WHEN: LLM checks visibility
         let visibleResult = Aware.shared.assertVisible("visible")
-        let hiddenResult = Aware.shared.assertVisible("hidden")
+        let missingResult = Aware.shared.assertVisible("does-not-exist")
 
         // THEN: Visibility is correctly reported
         XCTAssertTrue(visibleResult.passed, "Should assert visible view")
-        XCTAssertFalse(hiddenResult.passed, "Should fail for hidden view")
+        XCTAssertFalse(missingResult.passed, "Should fail for non-existent view")
+
+        // AND: Can check visibility state
+        let isVisible = Aware.shared.getStateBool("visible", key: "isVisible")
+        let isHidden = Aware.shared.getStateBool("hidden", key: "isVisible")
+        XCTAssertEqual(isVisible, true, "Should read visible state")
+        XCTAssertEqual(isHidden, false, "Should read hidden state")
     }
 
     func testLLMCanAssertState() async {

@@ -134,7 +134,7 @@ final class AwareMacOSPlatformTests: XCTestCase {
     func testRegisterTextBinding() async throws {
         // Given
         let viewId = "test-textfield-\(UUID().uuidString)"
-        @State var text = ""
+        var text = ""
         let binding = Binding(
             get: { text },
             set: { text = $0 }
