@@ -23,6 +23,12 @@ public struct CoreModifiersRegistry {
         registry.registerModifier(awareButtonModifier())
         registry.registerModifier(awareStateModifier())
         registry.registerModifier(awareTextModifier())
+
+        // Register new enhanced modifiers
+        registry.registerModifier(awareToggleModifier())
+        registry.registerModifier(awareNavigationModifier())
+        registry.registerModifier(awareAnimationModifier())
+        registry.registerModifier(awareScrollModifier())
     }
 
     // MARK: - Modifier Definitions
@@ -328,6 +334,254 @@ public struct CoreModifiersRegistry {
             tokenCost: 3,
             relatedModifiers: [".aware", ".awareTextField"],
             since: "1.0.0"
+        )
+    }
+
+    // MARK: - Enhanced Modifiers (v3.1+)
+
+    private static func awareToggleModifier() -> ModifierMetadata {
+        ModifierMetadata(
+            name: ".awareToggle",
+            fullSignature: "awareToggle(_ id: String, isOn: Binding<Bool>, label: String?)",
+            parameters: [
+                ParameterMetadata(
+                    name: "id",
+                    type: "String",
+                    required: true,
+                    description: "Unique toggle identifier"
+                ),
+                ParameterMetadata(
+                    name: "isOn",
+                    type: "Binding<Bool>",
+                    required: true,
+                    description: "Binding to track toggle state"
+                ),
+                ParameterMetadata(
+                    name: "label",
+                    type: "String?",
+                    required: false,
+                    defaultValue: "nil",
+                    description: "Human-readable label for the toggle"
+                )
+            ],
+            returnType: "some View",
+            platform: .all,
+            category: .action,
+            description: "Register toggle with automatic state tracking for on/off testing",
+            examples: [
+                CodeExample(
+                    code: """
+                    Toggle("Dark Mode", isOn: $isDarkMode)
+                        .awareToggle("dark-mode-toggle", isOn: $isDarkMode, label: "Dark Mode")
+                    """,
+                    description: "Basic toggle with state tracking"
+                ),
+                CodeExample(
+                    code: """
+                    Toggle("Notifications", isOn: $notificationsEnabled)
+                        .awareToggle("notifications-toggle", isOn: $notificationsEnabled, label: "Enable Notifications")
+                        .awareMetadata("notifications-toggle", description: "Enables push notifications", type: .preference)
+                    """,
+                    description: "Toggle with metadata for settings"
+                )
+            ],
+            tokenCost: 4,
+            relatedModifiers: [".awareState", ".awareMetadata"],
+            since: "3.1.0",
+            requiredParameters: ["id", "isOn"],
+            validationPattern: #"Toggle\([^)]*\)(?=.*\.awareToggle)"#,
+            commonMistakes: [
+                CommonMistake(
+                    pattern: #"Toggle\([^)]*\)(?!.*\.awareToggle)"#,
+                    description: "Toggle missing .awareToggle() modifier",
+                    severity: .warning,
+                    example: "Toggle(\"Enable\", isOn: $enabled) // Missing .awareToggle()"
+                )
+            ],
+            autoFixes: [
+                AutoFix(
+                    description: "Add .awareToggle() modifier with ID and binding",
+                    codeTransform: "Toggle(\"{text}\", isOn: $binding)\n  .awareToggle(\"{id}\", isOn: $binding, label: \"{text}\")",
+                    confidence: 0.85,
+                    example: "Toggle(\"Dark Mode\", isOn: $dark).awareToggle(\"dark-toggle\", isOn: $dark, label: \"Dark Mode\")"
+                )
+            ]
+        )
+    }
+
+    private static func awareNavigationModifier() -> ModifierMetadata {
+        ModifierMetadata(
+            name: ".awareNavigation",
+            fullSignature: "awareNavigation(_ id: String, destination: String?, isActive: Bool = false)",
+            parameters: [
+                ParameterMetadata(
+                    name: "id",
+                    type: "String",
+                    required: true,
+                    description: "Unique navigation identifier"
+                ),
+                ParameterMetadata(
+                    name: "destination",
+                    type: "String?",
+                    required: false,
+                    defaultValue: "nil",
+                    description: "Target view or route identifier"
+                ),
+                ParameterMetadata(
+                    name: "isActive",
+                    type: "Bool",
+                    required: false,
+                    defaultValue: "false",
+                    description: "Whether navigation is currently active"
+                )
+            ],
+            returnType: "some View",
+            platform: .all,
+            category: .navigation,
+            description: "Track navigation actions and state for multi-screen testing",
+            examples: [
+                CodeExample(
+                    code: """
+                    NavigationLink("Settings", destination: SettingsView())
+                        .awareNavigation("settings-link", destination: "SettingsView")
+                    """,
+                    description: "Basic navigation link tracking"
+                ),
+                CodeExample(
+                    code: """
+                    Button("Login") { showLogin = true }
+                        .awareButton("login-btn", label: "Login")
+                        .awareNavigation("login-nav", destination: "LoginView", isActive: showLogin)
+                    """,
+                    description: "Programmatic navigation with state"
+                )
+            ],
+            tokenCost: 4,
+            relatedModifiers: [".awareButton", ".awareContainer"],
+            since: "3.1.0",
+            requiredParameters: ["id"]
+        )
+    }
+
+    private static func awareAnimationModifier() -> ModifierMetadata {
+        ModifierMetadata(
+            name: ".awareAnimation",
+            fullSignature: "awareAnimation(_ id: String, type: String? = nil, duration: Double? = nil, isAnimating: Binding<Bool>? = nil)",
+            parameters: [
+                ParameterMetadata(
+                    name: "id",
+                    type: "String",
+                    required: true,
+                    description: "Unique animation identifier"
+                ),
+                ParameterMetadata(
+                    name: "type",
+                    type: "String?",
+                    required: false,
+                    defaultValue: "nil",
+                    description: "Animation type (e.g., 'spring', 'easeIn', 'linear')"
+                ),
+                ParameterMetadata(
+                    name: "duration",
+                    type: "Double?",
+                    required: false,
+                    defaultValue: "nil",
+                    description: "Animation duration in seconds"
+                ),
+                ParameterMetadata(
+                    name: "isAnimating",
+                    type: "Binding<Bool>?",
+                    required: false,
+                    defaultValue: "nil",
+                    description: "Binding to track animation state"
+                )
+            ],
+            returnType: "some View",
+            platform: .all,
+            category: .animation,
+            description: "Track animation state and timing for testing animated transitions",
+            examples: [
+                CodeExample(
+                    code: """
+                    Circle()
+                        .aware("loading-spinner", label: "Loading Indicator")
+                        .awareAnimation("spinner-anim", type: "rotation", duration: 1.0, isAnimating: $isLoading)
+                    """,
+                    description: "Track loading animation state"
+                ),
+                CodeExample(
+                    code: """
+                    VStack {
+                        // Content
+                    }
+                    .awareContainer("modal", label: "Modal Dialog")
+                    .awareAnimation("modal-slide", type: "slide", duration: 0.3)
+                    """,
+                    description: "Track modal slide animation"
+                )
+            ],
+            tokenCost: 5,
+            relatedModifiers: [".aware", ".awareState"],
+            since: "3.1.0",
+            requiredParameters: ["id"]
+        )
+    }
+
+    private static func awareScrollModifier() -> ModifierMetadata {
+        ModifierMetadata(
+            name: ".awareScroll",
+            fullSignature: "awareScroll(_ id: String, position: Binding<CGPoint>? = nil, isScrolling: Binding<Bool>? = nil)",
+            parameters: [
+                ParameterMetadata(
+                    name: "id",
+                    type: "String",
+                    required: true,
+                    description: "Unique scroll view identifier"
+                ),
+                ParameterMetadata(
+                    name: "position",
+                    type: "Binding<CGPoint>?",
+                    required: false,
+                    defaultValue: "nil",
+                    description: "Binding to track scroll position (x, y coordinates)"
+                ),
+                ParameterMetadata(
+                    name: "isScrolling",
+                    type: "Binding<Bool>?",
+                    required: false,
+                    defaultValue: "nil",
+                    description: "Binding to track whether actively scrolling"
+                )
+            ],
+            returnType: "some View",
+            platform: .all,
+            category: .scroll,
+            description: "Track scroll position and state for testing scrollable content",
+            examples: [
+                CodeExample(
+                    code: """
+                    ScrollView {
+                        // Content
+                    }
+                    .awareScroll("main-scroll", position: $scrollPosition, isScrolling: $isScrolling)
+                    """,
+                    description: "Track scroll position and state"
+                ),
+                CodeExample(
+                    code: """
+                    List(items) { item in
+                        ItemRow(item: item)
+                    }
+                    .awareContainer("items-list", label: "Items List")
+                    .awareScroll("items-scroll")
+                    """,
+                    description: "Track list scrolling"
+                )
+            ],
+            tokenCost: 4,
+            relatedModifiers: [".awareContainer", ".awareState"],
+            since: "3.1.0",
+            requiredParameters: ["id"]
         )
     }
 }

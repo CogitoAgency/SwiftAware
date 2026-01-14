@@ -170,6 +170,85 @@ public struct AwareProtocolGenerator {
             confidence: 0.5
         ))
 
+        // MARK: - WCAG Accessibility Rules (v3.1+)
+
+        // Rule 8: Interactive elements require labels (WCAG 2.4.6)
+        rules.append(ValidationRule(
+            name: "interactive_elements_require_labels",
+            category: .accessibility,
+            severity: .warning,
+            pattern: #"\.aware(Button|TextField|SecureField|Toggle)\([^,]*,\s*label:\s*nil"#,
+            description: "Interactive elements should have descriptive labels for accessibility (WCAG 2.4.6 - Headings and Labels)",
+            fix: "Add label parameter: .awareButton(\"id\", label: \"Descriptive Label\")",
+            confidence: 0.95
+        ))
+
+        // Rule 9: Toggle requires label (WCAG 4.1.2)
+        rules.append(ValidationRule(
+            name: "toggle_requires_label",
+            category: .accessibility,
+            severity: .warning,
+            pattern: #"Toggle\([^)]*\)(?!.*\.awareToggle)"#,
+            description: "Toggle elements must have labels for screen readers (WCAG 4.1.2 - Name, Role, Value)",
+            fix: "Add .awareToggle(\"<id>\", isOn: $binding, label: \"Toggle Purpose\") after Toggle declaration",
+            confidence: 0.9
+        ))
+
+        // Rule 10: Navigation links require descriptive labels (WCAG 2.4.4)
+        rules.append(ValidationRule(
+            name: "navigation_requires_descriptive_label",
+            category: .accessibility,
+            severity: .warning,
+            pattern: #"NavigationLink\([^)]*\)(?!.*\.awareNavigation)"#,
+            description: "Navigation links must have descriptive labels indicating destination (WCAG 2.4.4 - Link Purpose)",
+            fix: "Add .awareNavigation(\"<id>\", destination: \"DestinationView\") with clear destination name",
+            confidence: 0.85
+        ))
+
+        // Rule 11: Container hierarchy for semantic structure (WCAG 1.3.1)
+        rules.append(ValidationRule(
+            name: "semantic_container_structure",
+            category: .accessibility,
+            severity: .info,
+            pattern: nil,
+            description: "Use .awareContainer() to define semantic regions for screen reader navigation (WCAG 1.3.1 - Info and Relationships)",
+            fix: "Wrap related views with .awareContainer(\"<id>\", label: \"Section Name\") to create landmark regions",
+            confidence: 0.7
+        ))
+
+        // Rule 12: Touch target minimum size (WCAG 2.5.5)
+        rules.append(ValidationRule(
+            name: "touch_target_size",
+            category: .accessibility,
+            severity: .info,
+            pattern: nil,
+            description: "Interactive elements should meet minimum touch target size of 44x44 points (WCAG 2.5.5 - Target Size)",
+            fix: "Ensure buttons and tappable elements have .frame(minWidth: 44, minHeight: 44) or equivalent padding",
+            confidence: 0.6
+        ))
+
+        // Rule 13: State changes should be announced (WCAG 4.1.3)
+        rules.append(ValidationRule(
+            name: "state_changes_announced",
+            category: .accessibility,
+            severity: .info,
+            pattern: #"@State\s+(private\s+)?var\s+(\w+).*(?!.*\.awareState)"#,
+            description: "State changes should be tracked and announced to assistive technologies (WCAG 4.1.3 - Status Messages)",
+            fix: "Add .awareState(\"<viewId>\", key: \"<stateName>\", value: <stateValue>) to announce changes",
+            confidence: 0.65
+        ))
+
+        // Rule 14: Form validation feedback (WCAG 3.3.1)
+        rules.append(ValidationRule(
+            name: "form_validation_feedback",
+            category: .accessibility,
+            severity: .warning,
+            pattern: nil,
+            description: "Form fields with validation should provide clear error messages (WCAG 3.3.1 - Error Identification)",
+            fix: "Use .awareState() to track validation errors and display them with .aware() labeled error text",
+            confidence: 0.8
+        ))
+
         return ValidationRulesResult(
             rules: rules,
             categories: Set(rules.map { $0.category }),
