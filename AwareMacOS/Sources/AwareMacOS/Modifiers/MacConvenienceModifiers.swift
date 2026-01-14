@@ -407,12 +407,138 @@ extension View {
     }
 }
 
+// MARK: - Menu State (Mac-Specific)
+
+extension View {
+    /// Track macOS menu state
+    public func macMenuState(
+        _ id: String,
+        isOpen: Bool,
+        selectedItem: String? = nil,
+        itemCount: Int,
+        isContextMenu: Bool = false,
+        isSubmenu: Bool = false
+    ) -> some View {
+        self
+            .awareState(id, key: "isOpen", value: isOpen)
+            .awareState(id, key: "selectedItem", value: selectedItem ?? "")
+            .awareState(id, key: "itemCount", value: "\(itemCount)")
+            .awareState(id, key: "isContextMenu", value: isContextMenu)
+            .awareState(id, key: "isSubmenu", value: isSubmenu)
+            .awareMetadata(
+                id,
+                description: "Menu: \(isOpen ? "Open" : "Closed"), \(itemCount) items",
+                type: .system
+            )
+    }
+}
+
+// MARK: - Popover State (Mac-Specific)
+
+extension View {
+    /// Track macOS popover state
+    public func macPopoverState(
+        _ id: String,
+        isPresented: Bool,
+        edge: String? = nil,
+        contentSize: String? = nil,
+        behavior: String? = nil
+    ) -> some View {
+        self
+            .awareState(id, key: "isPresented", value: isPresented)
+            .awareState(id, key: "edge", value: edge ?? "")
+            .awareState(id, key: "contentSize", value: contentSize ?? "")
+            .awareState(id, key: "behavior", value: behavior ?? "")
+            .awareMetadata(
+                id,
+                description: "Popover: \(isPresented ? "Presented" : "Dismissed")",
+                type: .navigation
+            )
+    }
+}
+
+// MARK: - Preferences State (Mac-Specific)
+
+extension View {
+    /// Track macOS preferences window state
+    public func macPreferencesState(
+        _ id: String,
+        isPresented: Bool,
+        selectedTab: String? = nil,
+        tabCount: Int,
+        canDismiss: Bool = true
+    ) -> some View {
+        self
+            .awareState(id, key: "isPresented", value: isPresented)
+            .awareState(id, key: "selectedTab", value: selectedTab ?? "")
+            .awareState(id, key: "tabCount", value: "\(tabCount)")
+            .awareState(id, key: "canDismiss", value: canDismiss)
+            .awareMetadata(
+                id,
+                description: "Preferences: \(isPresented ? "Open" : "Closed"), tab: \(selectedTab ?? "none")",
+                type: .navigation
+            )
+    }
+}
+
+// MARK: - Status Bar State (Mac-Specific)
+
+extension View {
+    /// Track macOS status bar item state
+    public func macStatusBarState(
+        _ id: String,
+        isVisible: Bool,
+        isActive: Bool = false,
+        iconName: String? = nil,
+        hasMenu: Bool = true
+    ) -> some View {
+        self
+            .awareState(id, key: "isVisible", value: isVisible)
+            .awareState(id, key: "isActive", value: isActive)
+            .awareState(id, key: "iconName", value: iconName ?? "")
+            .awareState(id, key: "hasMenu", value: hasMenu)
+            .awareMetadata(
+                id,
+                description: "Status bar: \(isVisible ? "Visible" : "Hidden"), \(isActive ? "Active" : "Inactive")",
+                type: .system
+            )
+    }
+}
+
+// MARK: - Document State (Mac-Specific)
+
+extension View {
+    /// Track macOS document window state
+    public func macDocumentState(
+        _ id: String,
+        hasUnsavedChanges: Bool,
+        documentPath: String? = nil,
+        isReadOnly: Bool = false,
+        canUndo: Bool = false,
+        canRedo: Bool = false,
+        autosavesInPlace: Bool = true
+    ) -> some View {
+        self
+            .awareState(id, key: "hasUnsavedChanges", value: hasUnsavedChanges)
+            .awareState(id, key: "documentPath", value: documentPath ?? "")
+            .awareState(id, key: "isReadOnly", value: isReadOnly)
+            .awareState(id, key: "canUndo", value: canUndo)
+            .awareState(id, key: "canRedo", value: canRedo)
+            .awareState(id, key: "autosavesInPlace", value: autosavesInPlace)
+            .awareMetadata(
+                id,
+                description: "Document: \(hasUnsavedChanges ? "Modified" : "Clean"), \(isReadOnly ? "Read-only" : "Editable")",
+                type: .fileSystem
+            )
+    }
+}
+
 // MARK: - Statistics
 
 extension View {
     /// Get modifier statistics
     public static var macConvenienceModifierCount: Int {
-        return 16 // 12 ported from iOS + 4 Mac-specific
+        return 21 // 12 ported from iOS + 9 Mac-specific
     }
 
     public static var macPortedModifierCount: Int {
@@ -420,7 +546,7 @@ extension View {
     }
 
     public static var macSpecificModifierCount: Int {
-        return 4
+        return 9
     }
 }
 
