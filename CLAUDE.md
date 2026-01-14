@@ -40,12 +40,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Impact**: Validation rules increased from 7 → 27 (+286%), protocol size 12 KB → 28 KB
 
-### 3. Tool Improvements (+3 MCP tools, 8 total)
+### 3. Tool Improvements (+7 MCP tools, 12 total)
+
+**Phase 4 Tools (3):**
 - **aware_refactor_code**: Automatic refactoring (minimal/standard/comprehensive strategies)
 - **aware_estimate_savings**: ROI calculator ($449.95 savings per 100 tests, 10 elements)
 - **aware_compare_coverage**: Before/after comparison with recommendations
 
-**Impact**: MCP tools increased from 5 → 8 (+60%), 1,090 LOC of new functionality
+**Validation Tools (4 NEW - Breathe Integration):**
+- **aware_validate_code**: Run 27 validation rules (<500ms vs 30-60s rebuild)
+- **aware_fix_code**: Auto-fix violations using fix patterns (>70% success rate)
+- **aware_check_wcag**: WCAG 2.1 compliance checker (7 accessibility rules, A/AA/AAA)
+- **aware_check_performance**: Performance budget validator (6 rules, lenient/standard/strict)
+
+**Impact**: MCP tools increased from 5 → 12 (+140%), 2,481 LOC of new functionality
+**Architecture**: Database-based bridge (Breathe owns DB, AetherMCP queries stateless)
 
 ### 4. Pattern Library (18 comprehensive patterns)
 - **Authentication**: Login, Signup, Forgot Password (3 patterns)
@@ -67,7 +76,7 @@ Aware is organized as a **modular monorepo** with independent package versioning
 |---------|---------|----------|---------|
 | **AwareCore** | v3.1.0-alpha | Swift | Platform-agnostic foundation with enhanced validation & patterns |
 | **AwareiOS** | v2.2.0-beta | iOS 17+ | iOS-specific implementation with UIViewID enum, typeText support |
-| **AwareMacOS** | v2.0.3-beta | macOS 14+ | macOS-specific implementation with CGEvent simulation |
+| **AwareMacOS** | v2.1.0-beta | macOS 14+ | macOS implementation with 21 modifiers (12 ported + 9 Mac-specific) |
 | **AwareBackendClient** | v1.0.0-beta | Cross-platform | HTTP client for BackendAware REST API |
 | **AwareBridge** | v1.0.0-beta | Cross-platform | WebSocket IPC for real-time communication (<5ms latency) |
 | **Aware** | v3.1.0-alpha | Umbrella | Backward-compatible re-export facade with new modifiers |
@@ -703,7 +712,8 @@ swift build -Xswiftc -strict-concurrency=complete
 This is the **standalone** Aware framework. For **Breathe IDE users**, enhanced features are available:
 
 **Breathe-Specific Features**:
-- **MCP Tools**: 13+ tools for Claude Code integration
+- **MCP Tools**: 18+ tools for Claude Code integration
+- **Validation & Auto-Fix**: 27 rules with <500ms validation, >70% auto-fix success
 - **Snapshot Format Storage**: SQLite persistence in `~/.breathe/index.sqlite`
 - **Multi-App Testing**: Test any macOS app or iOS Simulator
 - **Intelligence**: Auto-diagnosis, error recovery, test generation
@@ -714,9 +724,13 @@ This is the **standalone** Aware framework. For **Breathe IDE users**, enhanced 
 - `aware_snapshot_formats` - Format metadata (token counts, use cases)
 - `aware_preferences` - Per-project snapshot preferences
 - `aware_snapshot_history` - Audit trail of captures
+- `aware_validation_rules` - 27 validation rules (completeness, consistency, performance, accessibility, state-machine)
+- `aware_fix_patterns` - Auto-fix templates with success_rate tracking
+- `aware_validation_history` - Validation audit trail with improvement metrics
 
 **MCP Tools** (when used with Breathe):
 ```
+# Snapshot Format Management (7 tools)
 snapshot_formats_list         # List available formats with metadata
 snapshot_preferences_get       # Get current project preferences
 snapshot_preferences_set       # Update preferences
@@ -724,6 +738,12 @@ snapshot_history_get           # View capture history
 snapshot_history_stats         # Get statistics and savings
 snapshot_history_record        # Record snapshot (internal)
 snapshot_recommend_format      # AI-powered format recommendation
+
+# Code Validation & Auto-Fix (4 tools) - NEW
+aware_validate_code           # Run 27 validation rules (<500ms)
+aware_fix_code                # Auto-fix violations (>70% success)
+aware_check_wcag              # WCAG 2.1 compliance (A/AA/AAA)
+aware_check_performance       # Performance budget validation
 ```
 
 See `/Users/adrian/Developer/cogito/Cook/CLAUDE.md` for full Breathe ecosystem context.
