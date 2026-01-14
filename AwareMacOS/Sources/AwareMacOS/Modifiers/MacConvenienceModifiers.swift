@@ -27,7 +27,7 @@ extension View {
             .awareMetadata(
                 id,
                 description: "Loading state: \(message ?? "Loading")",
-                type: .unknown,
+                type: .mutation,
             )
     }
 }
@@ -48,7 +48,7 @@ extension View {
             .awareMetadata(
                 id,
                 description: error != nil ? "Error: \(error!.localizedDescription)" : "No error",
-                type: .unknown,
+                type: .mutation,
                 isDestructive: false,
             )
     }
@@ -99,7 +99,7 @@ extension View {
             .awareMetadata(
                 id,
                 description: isValid ? "Valid" : "Invalid: \(errors.joined(separator: ", "))",
-                type: .unknown,
+                type: .mutation,
             )
     }
 }
@@ -146,7 +146,7 @@ extension View {
             .awareMetadata(
                 id,
                 description: "\(selectedItems.count) of \(totalItems) selected",
-                type: .unknown,
+                type: .mutation,
             )
     }
 }
@@ -168,7 +168,7 @@ extension View {
             .awareMetadata(
                 id,
                 description: isEmpty ? message : "Has content",
-                type: .unknown,
+                type: .mutation,
             )
     }
 }
@@ -190,7 +190,7 @@ extension View {
             .awareMetadata(
                 id,
                 description: isAuthenticated ? "Authenticated as \(username ?? "user")" : "Not authenticated",
-                type: .unknown,
+                type: .system,
             )
     }
 }
@@ -328,7 +328,7 @@ extension View {
             .awareMetadata(
                 id,
                 description: "Toolbar: \(isVisible ? "Visible" : "Hidden"), \(itemCount) items",
-                type: .unknown,
+                type: .mutation,
             )
     }
 }
@@ -352,7 +352,7 @@ extension View {
             .awareMetadata(
                 id,
                 description: "Sidebar: \(isExpanded ? "Expanded" : "Collapsed"), \(itemCount) items",
-                type: .unknown,
+                type: .mutation,
             )
     }
 }
@@ -376,7 +376,7 @@ extension View {
             .awareMetadata(
                 id,
                 description: isCollapsed ? "Split view collapsed" : "Split view: divider at \(Int(dividerPosition))",
-                type: .unknown,
+                type: .mutation,
             )
     }
 }
@@ -402,7 +402,7 @@ extension View {
             .awareMetadata(
                 id,
                 description: "Window: '\(title)' \(isFullScreen ? "(fullscreen)" : "")\(isKeyWindow ? " (key)" : "")",
-                type: .unknown,
+                type: .system,
             )
     }
 }
