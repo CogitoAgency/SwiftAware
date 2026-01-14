@@ -40,10 +40,7 @@ public enum ModifierRegistrationHelper {
                 await Aware.shared.registerState(id, key: key, value: value)
             }
 
-            // Note: Will migrate to Log.general.debug in Phase 3
-            #if DEBUG
-            print("AwareIOS: Registered \(type) view: \(id)")
-            #endif
+            AwareLog.modifiers.debug("Registered \(type) view: \(id)")
         }
     }
 
@@ -112,9 +109,7 @@ public enum ModifierRegistrationHelper {
         Task {
             await Aware.shared.unregisterView(id)
 
-            #if DEBUG
-            print("AwareIOS: Unregistered view: \(id)")
-            #endif
+            AwareLog.modifiers.debug("Unregistered view: \(id)")
         }
     }
 

@@ -261,7 +261,7 @@ struct DirectActionModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .task {
+            .task { [action, viewId] in
                 // Register action with platform service
                 #if os(iOS)
                 if let platform = AwareIOSPlatform.shared as? AwareIOSPlatform {
@@ -279,7 +279,7 @@ struct TextBindingModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .task {
+            .task { [viewId, text] in
                 // Register text binding with platform service
                 #if os(iOS)
                 AwareIOSPlatform.shared.registerTextBinding(viewId, binding: text)

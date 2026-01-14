@@ -27,8 +27,9 @@ public enum IPCTransportMode {
 public final class AwareIPCService {
     // MARK: - Configuration
 
-    private let ipcPath: String
+    private var ipcPath: String  // var to allow fallback path updates
     private let transportMode: IPCTransportMode
+    private let config: AwareIOSConfiguration
     private var heartbeatTask: Task<Void, Never>?
 
     #if canImport(AwareBridge)
@@ -38,8 +39,24 @@ public final class AwareIPCService {
     // MARK: - Initialization
 
     public init(ipcPath: String, transportMode: IPCTransportMode = .auto) {
+        // Legacy initializer for backward compatibility
+        self.config = AwareIOSConfiguration(
+            ipcPath: ipcPath,
+            transportMode: transportMode,
+            webSocketHost: "localhost",
+            webSocketPort: 9999,
+            heartbeatInterval: 2.0,
+            commandTimeoutAttempts: 50
+        )
         self.ipcPath = (ipcPath as NSString).expandingTildeInPath
         self.transportMode = transportMode
+        setupIPC()
+    }
+
+    public init(config: AwareIOSConfiguration) {
+        self.config = config
+        self.ipcPath = (config.ipcPath as NSString).expandingTildeInPath
+        self.transportMode = config.transportMode
         setupIPC()
     }
 
@@ -61,31 +78,47 @@ public final class AwareIPCService {
     // MARK: - Setup
 
     private func setupFileBased() {
-        // Create IPC directory
-        try? FileManager.default.createDirectory(
-            atPath: ipcPath,
-            withIntermediateDirectories: true
-        )
+        // Create IPC directory with error recovery
+        do {
+            try FileManager.default.createDirectory(
+                atPath: ipcPath,
+                withIntermediateDirectories: true
+            )
+            AwareLog.ipc.info("File-based IPC directory created at: \(ipcPath)")
+        } catch {
+            // Recovery: Use temp directory as fallback
+            let fallbackPath = NSTemporaryDirectory() + "aware-ipc"
+            AwareLog.ipc.error("Failed to create IPC directory at \(ipcPath): \(error.localizedDescription)")
+            AwareLog.ipc.warning("Falling back to temp directory: \(fallbackPath)")
 
-        #if DEBUG
-        print("AwareIPC: File-based IPC directory created at: \(ipcPath)")
-        #endif
+            // Update ipcPath to use fallback
+            self.ipcPath = fallbackPath
+
+            // Try creating fallback directory
+            do {
+                try FileManager.default.createDirectory(
+                    atPath: fallbackPath,
+                    withIntermediateDirectories: true
+                )
+                AwareLog.ipc.info("Fallback IPC directory created successfully")
+            } catch {
+                AwareLog.ipc.fault("Failed to create fallback IPC directory: \(error.localizedDescription)")
+                // Continue anyway - operations will fail but won't crash
+            }
+        }
     }
 
     #if canImport(AwareBridge)
     private func setupWebSocket() {
-        webSocketClient = WebSocketIPCClient(url: "ws://localhost:9999")
+        webSocketClient = WebSocketIPCClient(url: config.webSocketURL)
 
-        Task {
+        Task { [webSocketClient] in
             do {
                 try await webSocketClient?.connect()
-                #if DEBUG
-                print("AwareIPC: WebSocket connection established")
-                #endif
+                AwareLog.ipc.info("WebSocket connection established at \(config.webSocketURL)")
             } catch {
-                #if DEBUG
-                print("AwareIPC: WebSocket connection failed, falling back to file-based: \(error)")
-                #endif
+                AwareLog.ipc.warning("WebSocket connection failed, falling back to file-based: \(error.localizedDescription)")
+                // Non-fatal: file-based IPC will be used as fallback
             }
         }
     }
@@ -97,13 +130,21 @@ public final class AwareIPCService {
         heartbeatTask = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.writeHeartbeat()
-                try? await Task.sleep(for: .seconds(interval))
+
+                do {
+                    try await Task.sleep(for: .seconds(interval))
+                } catch {
+                    // Only log if not cancelled (expected during teardown)
+                    if !Task.isCancelled {
+                        AwareLog.ipc.warning("Heartbeat sleep interrupted: \(error.localizedDescription)")
+                    }
+                    break
+                }
             }
+            AwareLog.ipc.debug("Heartbeat task stopped")
         }
 
-        #if DEBUG
-        print("AwareIPC: Heartbeat started with \(interval)s interval")
-        #endif
+        AwareLog.ipc.info("Heartbeat started with \(interval)s interval")
     }
 
     private func writeHeartbeat() {
@@ -113,9 +154,8 @@ public final class AwareIPCService {
         do {
             try timestamp.write(toFile: heartbeatPath, atomically: true, encoding: .utf8)
         } catch {
-            #if DEBUG
-            print("AwareIPC: Failed to write heartbeat: \(error.localizedDescription)")
-            #endif
+            AwareLog.ipc.warning("Failed to write heartbeat: \(error.localizedDescription)")
+            // Non-fatal: heartbeat is for monitoring, not critical functionality
         }
     }
 
@@ -166,9 +206,10 @@ public final class AwareIPCService {
         let commandData = try JSONEncoder().encode(command)
         try commandData.write(to: URL(fileURLWithPath: commandPath))
 
-        // Wait for result (polling)
+        // Wait for result (polling with configurable timeout)
         var attempts = 0
-        while attempts < 50 { // 5 second timeout
+        let maxAttempts = config.commandTimeoutAttempts
+        while attempts < maxAttempts {
             if FileManager.default.fileExists(atPath: resultPath) {
                 let resultData = try Data(contentsOf: URL(fileURLWithPath: resultPath))
                 return try JSONDecoder().decode(AwareResult.self, from: resultData)
@@ -188,7 +229,7 @@ public final class AwareIPCService {
     deinit {
         stopHeartbeat()
         #if canImport(AwareBridge)
-        Task {
+        Task { [webSocketClient] in
             await webSocketClient?.disconnect()
         }
         #endif
@@ -201,8 +242,11 @@ public final class AwareIPCService {
 @MainActor
 private final class WebSocketIPCClient {
     private let url: String
+    private var webSocketTask: URLSessionWebSocketTask?
+    private var session: URLSession?
     private var isConnectedState = false
     private var pendingResults: [String: CheckedContinuation<MCPResult, Error>] = [:]
+    private var receiveTask: Task<Void, Never>?
 
     init(url: String) {
         self.url = url
@@ -213,12 +257,42 @@ private final class WebSocketIPCClient {
     }
 
     func connect() async throws {
-        // Connection logic handled by AwareBridge
-        isConnectedState = true
+        guard let url = URL(string: url) else {
+            throw AwareIPCError.invalidURL
+        }
+
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 10.0
+
+        session = URLSession(configuration: config)
+        webSocketTask = session?.webSocketTask(with: url)
+        webSocketTask?.resume()
+
+        // Wait for connection (2 second timeout with 100ms polling)
+        var attempts = 0
+        while attempts < 20 {
+            if webSocketTask?.state == .running {
+                isConnectedState = true
+                startReceiving()
+                AwareLog.ipc.debug("WebSocket client connected successfully")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(100))
+            attempts += 1
+        }
+
+        throw AwareIPCError.connectionTimeout
     }
 
     func disconnect() async {
+        receiveTask?.cancel()
+        receiveTask = nil
+        webSocketTask?.cancel(with: .goingAway, reason: nil)
+        webSocketTask = nil
+        session?.invalidateAndCancel()
+        session = nil
         isConnectedState = false
+        AwareLog.ipc.debug("WebSocket client disconnected")
     }
 
     func sendCommand(_ command: MCPCommand) async throws -> MCPResult {
@@ -226,16 +300,68 @@ private final class WebSocketIPCClient {
             throw AwareIPCError.notConnected
         }
 
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(command)
+
+        let message = URLSessionWebSocketTask.Message.data(data)
+        try await webSocketTask?.send(message)
+
         return try await withCheckedThrowingContinuation { continuation in
             pendingResults[command.id] = continuation
 
-            // Send command via bridge
-            Task {
-                // This would actually send via WebSocket
-                // For now, simulate success
-                let result = MCPResult.success(commandId: command.id)
+            // Timeout after 30 seconds
+            Task { [weak self, command] in
+                try? await Task.sleep(for: .seconds(30))
+                if let pending = await self?.pendingResults.removeValue(forKey: command.id) {
+                    pending.resume(throwing: AwareIPCError.timeout)
+                }
+            }
+        }
+    }
+
+    private func startReceiving() {
+        receiveTask = Task { [weak self] in
+            while !Task.isCancelled, let self = self, self.isConnectedState {
+                do {
+                    let message = try await self.webSocketTask?.receive()
+                    await self.handleMessage(message)
+                } catch {
+                    if !Task.isCancelled {
+                        AwareLog.ipc.error("WebSocket receive error: \(error.localizedDescription)")
+                        await self.disconnect()
+                    }
+                    break
+                }
+            }
+        }
+    }
+
+    private func handleMessage(_ message: URLSessionWebSocketTask.Message?) async {
+        guard let message = message else { return }
+
+        switch message {
+        case .data(let data):
+            await handleResultData(data)
+        case .string(let text):
+            guard let data = text.data(using: .utf8) else { return }
+            await handleResultData(data)
+        @unknown default:
+            AwareLog.ipc.warning("Unknown WebSocket message type received")
+        }
+    }
+
+    private func handleResultData(_ data: Data) async {
+        do {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let result = try decoder.decode(MCPResult.self, from: data)
+
+            if let continuation = pendingResults.removeValue(forKey: result.commandId) {
                 continuation.resume(returning: result)
             }
+        } catch {
+            AwareLog.ipc.error("Failed to decode WebSocket result: \(error.localizedDescription)")
         }
     }
 }
@@ -248,6 +374,32 @@ public enum AwareIPCError: Error {
     case encodingFailed
     case decodingFailed
     case notConnected
+    case invalidURL            // NEW: Invalid WebSocket URL
+    case connectionTimeout     // NEW: WebSocket connection timeout
+    case directoryCreationFailed(path: String, underlying: Error)  // NEW: IPC directory creation failed
+    case heartbeatFailed(underlying: Error)  // NEW: Heartbeat write failed
+
+    /// Human-readable error description
+    public var localizedDescription: String {
+        switch self {
+        case .timeout:
+            return "IPC command timed out after waiting for response"
+        case .encodingFailed:
+            return "Failed to encode command data"
+        case .decodingFailed:
+            return "Failed to decode result data"
+        case .notConnected:
+            return "WebSocket is not connected"
+        case .invalidURL:
+            return "Invalid WebSocket URL provided"
+        case .connectionTimeout:
+            return "WebSocket connection attempt timed out"
+        case .directoryCreationFailed(let path, let underlying):
+            return "Failed to create IPC directory at '\(path)': \(underlying.localizedDescription)"
+        case .heartbeatFailed(let underlying):
+            return "Failed to write heartbeat: \(underlying.localizedDescription)"
+        }
+    }
 }
 
 // MARK: - Legacy Types (for backward compatibility)

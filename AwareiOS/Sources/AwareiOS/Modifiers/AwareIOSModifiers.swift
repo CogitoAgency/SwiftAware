@@ -156,40 +156,24 @@ struct UIButtonModifier: ViewModifier {
                         }
                         .onChange(of: geo.frame(in: .global)) { _, newFrame in
                             frame = newFrame
-                            updateFrame()
                         }
                 }
             )
             .onDisappear {
-                Task { @MainActor in
-                    await Aware.shared.unregisterView(id)
-                }
+                ModifierRegistrationHelper.unregisterView(id: id)
             }
     }
 
     private func registerButton() {
-        Task { @MainActor in
-            // Register with main Aware service
-            await Aware.shared.registerView(id, label: label, isContainer: false, parentId: nil)
+        ModifierRegistrationHelper.registerView(
+            id: id,
+            label: label,
+            type: "button",
+            additionalState: ModifierRegistrationHelper.buttonState(hasCallback: action != nil)
+        )
 
-            // Register action callback for ghost UI testing
-            if let action = action {
-                AwareIOSPlatform.shared.registerAction(id, callback: action)
-            }
-
-            // Add state tracking
-            await Aware.shared.registerState(id, key: "type", value: "button")
-            await Aware.shared.registerState(id, key: "actionable", value: "true")
-            if action != nil {
-                await Aware.shared.registerState(id, key: "hasCallback", value: "true")
-            }
-        }
-    }
-
-    private func updateFrame() {
-        Task { @MainActor in
-            // TODO: Add updateFrame method to Aware service
-            // Aware.shared.updateFrame(id, frame: frame)
+        if let action = action {
+            ModifierRegistrationHelper.registerActionCallback(id: id, action: action)
         }
     }
 }
@@ -246,40 +230,31 @@ struct UITextFieldModifier: ViewModifier {
                 isFocused?.wrappedValue = newValue
             }
             .onDisappear {
-                Task { @MainActor in
-                    await Aware.shared.unregisterView(id)
-                }
+                ModifierRegistrationHelper.unregisterView(id: id)
             }
     }
 
     private func registerTextField() {
-        Task { @MainActor in
-            await Aware.shared.registerView(id, label: label, isContainer: false, parentId: nil)
+        var additionalState = ModifierRegistrationHelper.textFieldState(placeholder: placeholder)
+        additionalState["text"] = text.wrappedValue
+        additionalState["isEmpty"] = String(text.wrappedValue.isEmpty)
+        additionalState["charCount"] = String(text.wrappedValue.count)
+        additionalState["isFocused"] = String(focused)
 
-            await Aware.shared.registerState(id, key: "text", value: text.wrappedValue)
-            await Aware.shared.registerState(id, key: "isEmpty", value: String(text.wrappedValue.isEmpty))
-            await Aware.shared.registerState(id, key: "charCount", value: String(text.wrappedValue.count))
-            await Aware.shared.registerState(id, key: "isFocused", value: String(focused))
-            await Aware.shared.registerState(id, key: "type", value: "textField")
-
-            if let placeholder = placeholder {
-                await Aware.shared.registerState(id, key: "placeholder", value: placeholder)
-            }
-        }
+        ModifierRegistrationHelper.registerView(
+            id: id,
+            label: label,
+            type: "textField",
+            additionalState: additionalState
+        )
     }
 
     private func updateTextState(_ newValue: String) {
-        Task { @MainActor in
-            await Aware.shared.registerState(id, key: "text", value: newValue)
-            await Aware.shared.registerState(id, key: "isEmpty", value: String(newValue.isEmpty))
-            await Aware.shared.registerState(id, key: "charCount", value: String(newValue.count))
-        }
+        ModifierRegistrationHelper.updateTextFieldState(id: id, text: newValue)
     }
 
     private func updateFocusState(_ newValue: Bool) {
-        Task { @MainActor in
-            await Aware.shared.registerState(id, key: "isFocused", value: String(newValue))
-        }
+        ModifierRegistrationHelper.updateTextFieldState(id: id, text: text.wrappedValue, focused: newValue)
     }
 }
 
@@ -308,32 +283,28 @@ struct UISecureFieldModifier: ViewModifier {
                 updateTextState(newValue)
             }
             .onDisappear {
-                Task { @MainActor in
-                    await Aware.shared.unregisterView(id)
-                }
+                ModifierRegistrationHelper.unregisterView(id: id)
             }
     }
 
     private func registerSecureField() {
-        Task { @MainActor in
-            await Aware.shared.registerView(id, label: label, isContainer: false, parentId: nil)
+        var additionalState = ModifierRegistrationHelper.textFieldState(placeholder: placeholder, secure: true)
+        additionalState["isEmpty"] = String(text.wrappedValue.isEmpty)
+        additionalState["charCount"] = String(text.wrappedValue.count)
 
-            await Aware.shared.registerState(id, key: "isEmpty", value: String(text.wrappedValue.isEmpty))
-            await Aware.shared.registerState(id, key: "charCount", value: String(text.wrappedValue.count))
-            await Aware.shared.registerState(id, key: "type", value: "secureField")
-            await Aware.shared.registerState(id, key: "secure", value: "true")
-
-            if let placeholder = placeholder {
-                await Aware.shared.registerState(id, key: "placeholder", value: placeholder)
-            }
-        }
+        ModifierRegistrationHelper.registerView(
+            id: id,
+            label: label,
+            type: "secureField",
+            additionalState: additionalState
+        )
     }
 
     private func updateTextState(_ newValue: String) {
-        Task { @MainActor in
-            await Aware.shared.registerState(id, key: "isEmpty", value: String(newValue.isEmpty))
-            await Aware.shared.registerState(id, key: "charCount", value: String(newValue.count))
-        }
+        ModifierRegistrationHelper.updateState(id: id, updates: [
+            "isEmpty": String(newValue.isEmpty),
+            "charCount": String(newValue.count)
+        ])
     }
 }
 
@@ -361,25 +332,21 @@ struct UIToggleModifier: ViewModifier {
                 updateToggleState(newValue)
             }
             .onDisappear {
-                Task { @MainActor in
-                    await Aware.shared.unregisterView(id)
-                }
+                ModifierRegistrationHelper.unregisterView(id: id)
             }
     }
 
     private func registerToggle() {
-        Task { @MainActor in
-            await Aware.shared.registerView(id, label: label, isContainer: false, parentId: nil)
-
-            await Aware.shared.registerState(id, key: "isOn", value: String(isOn.wrappedValue))
-            await Aware.shared.registerState(id, key: "type", value: "toggle")
-        }
+        ModifierRegistrationHelper.registerView(
+            id: id,
+            label: label,
+            type: "toggle",
+            additionalState: ["isOn": String(isOn.wrappedValue)]
+        )
     }
 
     private func updateToggleState(_ newValue: Bool) {
-        Task { @MainActor in
-            await Aware.shared.registerState(id, key: "isOn", value: String(newValue))
-        }
+        ModifierRegistrationHelper.updateToggleState(id: id, isOn: newValue)
     }
 }
 
@@ -408,31 +375,31 @@ struct UIPickerModifier<T: Hashable>: ViewModifier {
                 updateSelectionState(newValue)
             }
             .onDisappear {
-                Task { @MainActor in
-                    await Aware.shared.unregisterView(id)
-                }
+                ModifierRegistrationHelper.unregisterView(id: id)
             }
     }
 
     private func registerPicker() {
-        Task { @MainActor in
-            await Aware.shared.registerView(id, label: label, isContainer: false, parentId: nil)
+        let index = options.firstIndex(of: selection.wrappedValue) ?? 0
+        let optionStrings = options.map { String(describing: $0) }
 
-            let index = options.firstIndex(of: selection.wrappedValue) ?? 0
-            await Aware.shared.registerState(id, key: "selection", value: String(describing: selection.wrappedValue))
-            await Aware.shared.registerState(id, key: "selectedIndex", value: String(index))
-            await Aware.shared.registerState(id, key: "optionCount", value: String(options.count))
-            await Aware.shared.registerState(id, key: "type", value: "picker")
-            await Aware.shared.registerState(id, key: "options", value: options.map { String(describing: $0) }.joined(separator: ","))
-        }
+        var additionalState = ModifierRegistrationHelper.pickerState(options: optionStrings, selectedIndex: index)
+        additionalState["selection"] = String(describing: selection.wrappedValue)
+
+        ModifierRegistrationHelper.registerView(
+            id: id,
+            label: label,
+            type: "picker",
+            additionalState: additionalState
+        )
     }
 
     private func updateSelectionState(_ newValue: T) {
-        Task { @MainActor in
-            let index = options.firstIndex(of: newValue) ?? 0
-            await Aware.shared.registerState(id, key: "selection", value: String(describing: newValue))
-            await Aware.shared.registerState(id, key: "selectedIndex", value: String(index))
-        }
+        let index = options.firstIndex(of: newValue) ?? 0
+        ModifierRegistrationHelper.updateState(id: id, updates: [
+            "selection": String(describing: newValue),
+            "selectedIndex": String(index)
+        ])
     }
 }
 
@@ -461,31 +428,33 @@ struct UISliderModifier: ViewModifier {
                 updateValueState(newValue)
             }
             .onDisappear {
-                Task { @MainActor in
-                    await Aware.shared.unregisterView(id)
-                }
+                ModifierRegistrationHelper.unregisterView(id: id)
             }
     }
 
     private func registerSlider() {
-        Task { @MainActor in
-            await Aware.shared.registerView(id, label: label, isContainer: false, parentId: nil)
+        ModifierRegistrationHelper.registerView(
+            id: id,
+            label: label,
+            type: "slider",
+            additionalState: [:]
+        )
 
-            let normalized = (value.wrappedValue - range.lowerBound) / (range.upperBound - range.lowerBound)
-            await Aware.shared.registerState(id, key: "value", value: String(format: "%.2f", value.wrappedValue))
-            await Aware.shared.registerState(id, key: "normalized", value: String(format: "%.2f", normalized))
-            await Aware.shared.registerState(id, key: "min", value: String(format: "%.2f", range.lowerBound))
-            await Aware.shared.registerState(id, key: "max", value: String(format: "%.2f", range.upperBound))
-            await Aware.shared.registerState(id, key: "type", value: "slider")
-        }
+        ModifierRegistrationHelper.updateSliderState(
+            id: id,
+            value: value.wrappedValue,
+            min: range.lowerBound,
+            max: range.upperBound
+        )
     }
 
     private func updateValueState(_ newValue: Double) {
-        Task { @MainActor in
-            let normalized = (newValue - range.lowerBound) / (range.upperBound - range.lowerBound)
-            await Aware.shared.registerState(id, key: "value", value: String(format: "%.2f", newValue))
-            await Aware.shared.registerState(id, key: "normalized", value: String(format: "%.2f", normalized))
-        }
+        ModifierRegistrationHelper.updateSliderState(
+            id: id,
+            value: newValue,
+            min: range.lowerBound,
+            max: range.upperBound
+        )
     }
 }
 

@@ -39,23 +39,40 @@ public final class AwareIOSPlatform: AwarePlatform {
 
     // MARK: - Configuration
 
-    /// Configure iOS platform with IPC settings
-    /// - Parameters:
-    ///   - options: Configuration options ("ipcPath": String)
-    public func configure(options: [String: Any]) {
+    /// Configure iOS platform with type-safe configuration
+    /// - Parameter config: Configuration settings
+    public func configure(config: AwareIOSConfiguration) {
         guard !isConfigured else { return }
 
-        let ipcPath = options["ipcPath"] as? String ?? "~/.aware"
+        // Validate configuration
+        let errors = config.validate()
+        if !errors.isEmpty {
+            AwareLog.platform.warning("Configuration validation warnings: \(errors.joined(separator: ", "))")
+        }
 
-        // Initialize IPC service
-        ipcService = AwareIPCService(ipcPath: ipcPath)
-        ipcService?.startHeartbeat()
+        // Initialize IPC service with configuration
+        ipcService = AwareIPCService(config: config)
+        ipcService?.startHeartbeat(interval: config.heartbeatInterval)
 
         isConfigured = true
 
-        #if DEBUG
-        print("AwareIOS: Platform configured with IPC path: \(ipcPath)")
-        #endif
+        AwareLog.platform.info("Platform configured with IPC path: \(config.ipcPath), transport: \(config.transportMode)")
+    }
+
+    /// Configure iOS platform with legacy options dictionary (backward compatibility)
+    /// - Parameter options: Configuration options dictionary
+    @available(*, deprecated, message: "Use configure(config:) with AwareIOSConfiguration instead")
+    public func configure(options: [String: Any]) {
+        let ipcPath = options["ipcPath"] as? String ?? AwareIOSConfiguration.default.ipcPath
+        let config = AwareIOSConfiguration(
+            ipcPath: ipcPath,
+            transportMode: .auto,
+            webSocketHost: "localhost",
+            webSocketPort: 9999,
+            heartbeatInterval: 2.0,
+            commandTimeoutAttempts: 50
+        )
+        configure(config: config)
     }
 
     // MARK: - Action Registration
@@ -64,23 +81,17 @@ public final class AwareIOSPlatform: AwarePlatform {
     public func registerAction(_ viewId: String, callback: @escaping @Sendable @MainActor () async -> Void) {
         actionCallbacks[viewId] = callback
 
-        #if DEBUG
-        print("AwareIOS: Registered action for view: \(viewId)")
-        #endif
+        AwareLog.platform.debug("Registered action for view: \(viewId)")
     }
 
     /// Execute a registered action
     public func executeAction(_ viewId: String) async -> Bool {
         guard let callback = actionCallbacks[viewId] else {
-            #if DEBUG
-            print("AwareIOS: No action callback registered for view: \(viewId)")
-            #endif
+            AwareLog.platform.warning("No action callback registered for view: \(viewId)")
             return false
         }
 
-        #if DEBUG
-        print("AwareIOS: Executing action for view: \(viewId)")
-        #endif
+        AwareLog.platform.debug("Executing action for view: \(viewId)")
 
         await callback()
         return true
@@ -95,9 +106,7 @@ public final class AwareIOSPlatform: AwarePlatform {
         }
         gestureCallbacks[viewId]?[type] = callback
 
-        #if DEBUG
-        print("AwareIOS: Registered gesture '\(type)' for view: \(viewId)")
-        #endif
+        AwareLog.platform.debug("Registered gesture '\(type)' for view: \(viewId)")
     }
 
     // MARK: - Input Simulation
@@ -113,12 +122,50 @@ public final class AwareIOSPlatform: AwarePlatform {
             )
 
         case .longPress:
-            // TODO: Implement long press simulation
-            return AwareInputResult(success: false, message: "Long press not yet implemented on iOS")
+            let duration = command.parameters["duration"]
+                .flatMap { TimeInterval($0) } ?? 0.5
 
-        case .swipe, .scroll:
-            // TODO: Implement swipe/scroll simulation
-            return AwareInputResult(success: false, message: "Swipe/scroll not yet implemented on iOS")
+            guard let callback = gestureCallbacks[command.target]?["longPress"] else {
+                return AwareInputResult(
+                    success: false,
+                    message: "No long press registered for '\(command.target)'"
+                )
+            }
+
+            // Execute after duration
+            try? await Task.sleep(for: .seconds(duration))
+            await callback()
+
+            return AwareInputResult(success: true, message: "Long pressed '\(command.target)' for \(duration)s")
+
+        case .swipe:
+            guard let direction = command.parameters["direction"] else {
+                return AwareInputResult(success: false, message: "swipe requires 'direction' parameter (up/down/left/right)")
+            }
+
+            let gestureType = "swipe\(direction.capitalized)"
+            guard let callback = gestureCallbacks[command.target]?[gestureType] else {
+                return AwareInputResult(success: false, message: "No \(direction) swipe registered for '\(command.target)'")
+            }
+
+            await callback()
+            return AwareInputResult(success: true, message: "Swiped \(direction) on '\(command.target)'")
+
+        case .scroll:
+            guard let direction = command.parameters["direction"] else {
+                return AwareInputResult(success: false, message: "scroll requires 'direction' parameter (up/down/left/right)")
+            }
+
+            let distance = command.parameters["distance"]
+                .flatMap { Double($0) } ?? 100.0
+
+            let gestureType = "scroll\(direction.capitalized)"
+            guard let callback = gestureCallbacks[command.target]?[gestureType] else {
+                return AwareInputResult(success: false, message: "No \(direction) scroll registered for '\(command.target)'")
+            }
+
+            await callback()
+            return AwareInputResult(success: true, message: "Scrolled \(direction) by \(distance)pt on '\(command.target)'")
 
         case .type:
             // Implement text input simulation via textBindings
@@ -161,25 +208,19 @@ public final class AwareIOSPlatform: AwarePlatform {
     public func registerTextBinding(_ viewId: String, binding: Binding<String>) {
         textBindings[viewId] = binding
 
-        #if DEBUG
-        print("AwareIOS: Registered text binding for view: \(viewId)")
-        #endif
+        AwareLog.platform.debug("Registered text binding for view: \(viewId)")
     }
 
     /// Type text into a registered text field
     public func typeText(_ viewId: String, text: String) async -> Bool {
         guard let binding = textBindings[viewId] else {
-            #if DEBUG
-            print("AwareIOS: No text binding registered for view: \(viewId)")
-            #endif
+            AwareLog.platform.warning("No text binding registered for view: \(viewId)")
             return false
         }
 
         binding.wrappedValue = text
 
-        #if DEBUG
-        print("AwareIOS: Typed '\(text)' into view: \(viewId)")
-        #endif
+        AwareLog.platform.debug("Typed '\(text)' into view: \(viewId)")
 
         return true
     }
@@ -200,15 +241,27 @@ public final class AwareIOSPlatform: AwarePlatform {
 // MARK: - Public Configuration Extension
 
 public extension Aware {
-    /// Configure Aware for iOS platform
+    /// Configure Aware for iOS platform with type-safe configuration
     /// Sets up iOS-specific features and IPC communication
-    /// - Parameter ipcPath: Path to IPC directory (default: ~/.aware)
-    static func configureForIOS(ipcPath: String = "~/.aware") {
-        AwareIOSPlatform.shared.configure(options: ["ipcPath": ipcPath])
+    /// - Parameter config: iOS platform configuration (default: .default)
+    static func configureForIOS(config: AwareIOSConfiguration = .default) {
+        AwareIOSPlatform.shared.configure(config: config)
+        AwareLog.platform.info("Configured for iOS platform")
+    }
 
-        #if DEBUG
-        print("Aware: Configured for iOS platform")
-        #endif
+    /// Configure Aware for iOS platform with legacy IPC path (backward compatibility)
+    /// - Parameter ipcPath: Path to IPC directory (default: ~/.aware)
+    @available(*, deprecated, message: "Use configureForIOS(config:) with AwareIOSConfiguration instead")
+    static func configureForIOS(ipcPath: String) {
+        let config = AwareIOSConfiguration(
+            ipcPath: ipcPath,
+            transportMode: .auto,
+            webSocketHost: "localhost",
+            webSocketPort: 9999,
+            heartbeatInterval: 2.0,
+            commandTimeoutAttempts: 50
+        )
+        configureForIOS(config: config)
     }
 }
 
