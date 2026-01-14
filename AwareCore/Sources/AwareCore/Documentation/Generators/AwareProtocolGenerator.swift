@@ -249,6 +249,74 @@ public struct AwareProtocolGenerator {
             confidence: 0.8
         ))
 
+        // MARK: - Performance Budget Rules (v3.1+)
+
+        // Rule 15: Action execution time budget
+        rules.append(ValidationRule(
+            name: "action_execution_budget",
+            category: .performance,
+            severity: .warning,
+            pattern: nil,
+            description: "Action handlers should complete within performance budget (Standard: 250ms, Strict: 100ms, Lenient: 500ms)",
+            fix: "Use .awareMetadata() with expectedDurationMs parameter to declare expected execution time and enable performance monitoring",
+            confidence: 0.75
+        ))
+
+        // Rule 16: Animation duration budget
+        rules.append(ValidationRule(
+            name: "animation_duration_budget",
+            category: .performance,
+            severity: .info,
+            pattern: #"\.awareAnimation\([^)]*,\s*duration:\s*([0-9.]+)"#,
+            description: "Animations should complete within 500ms for good UX (300ms recommended for most transitions)",
+            fix: "Reduce animation duration or use .spring() for natural feel. Add duration parameter to .awareAnimation() for tracking",
+            confidence: 0.7
+        ))
+
+        // Rule 17: Network action timeout
+        rules.append(ValidationRule(
+            name: "network_action_timeout",
+            category: .performance,
+            severity: .warning,
+            pattern: #"\.awareMetadata\([^)]*,\s*type:\s*\.network"#,
+            description: "Network actions should have timeout budgets (Standard: 30s, Fast: 10s, Slow: 60s)",
+            fix: "Add expectedDurationMs to .awareMetadata() and implement timeout handling in action handler",
+            confidence: 0.8
+        ))
+
+        // Rule 18: Scroll performance tracking
+        rules.append(ValidationRule(
+            name: "scroll_performance_tracking",
+            category: .performance,
+            severity: .info,
+            pattern: #"ScrollView\([^)]*\)(?!.*\.awareScroll)"#,
+            description: "ScrollView with many items should track scroll performance to detect janky scrolling",
+            fix: "Add .awareScroll(\"<id>\", position: $scrollPosition, isScrolling: $isScrolling) to track scroll metrics",
+            confidence: 0.65
+        ))
+
+        // Rule 19: State update performance
+        rules.append(ValidationRule(
+            name: "state_update_performance",
+            category: .performance,
+            severity: .info,
+            pattern: nil,
+            description: "Frequent state updates (@State variables) should be tracked to identify performance bottlenecks",
+            fix: "Use .awareState() on views with frequently updating state to monitor update frequency and render performance",
+            confidence: 0.6
+        ))
+
+        // Rule 20: Heavy computation warning
+        rules.append(ValidationRule(
+            name: "heavy_computation_warning",
+            category: .performance,
+            severity: .warning,
+            pattern: nil,
+            description: "Expensive computations in view body should be avoided (use computed properties or @State)",
+            fix: "Move heavy computation to background queue or use .task {} modifier. Track with .awareMetadata() if unavoidable",
+            confidence: 0.7
+        ))
+
         return ValidationRulesResult(
             rules: rules,
             categories: Set(rules.map { $0.category }),
