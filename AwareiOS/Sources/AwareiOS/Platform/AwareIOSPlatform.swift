@@ -11,6 +11,7 @@
 #if os(iOS)
 import UIKit
 import SwiftUI
+import AwareCore
 
 // MARK: - iOS AwarePlatform Implementation
 
@@ -68,7 +69,10 @@ public final class AwareIOSPlatform: AwarePlatformProtocol {
             transportMode: .auto,
             webSocketHost: "localhost",
             webSocketPort: 9999,
+            webSocketTimeout: 5.0,
             heartbeatInterval: 2.0,
+            heartbeatEnabled: true,
+            commandPollInterval: 100,
             commandTimeoutAttempts: 50
         )
         configure(config: config)
@@ -257,7 +261,10 @@ public extension Aware {
             transportMode: .auto,
             webSocketHost: "localhost",
             webSocketPort: 9999,
+            webSocketTimeout: 5.0,
             heartbeatInterval: 2.0,
+            heartbeatEnabled: true,
+            commandPollInterval: 100,
             commandTimeoutAttempts: 50
         )
         configureForIOS(config: config)
