@@ -26,11 +26,7 @@ extension View {
             .awareMetadata(
                 id,
                 description: "Loading state: \(message ?? "Loading")",
-                type: .query,
-                metadata: [
-                    "isLoading": "\(isLoading)",
-                    "hasProgress": "\(progress != nil)"
-                ]
+                type: .unknown
             )
     }
 }
@@ -51,12 +47,8 @@ extension View {
             .awareMetadata(
                 id,
                 description: error != nil ? "Error: \(error!.localizedDescription)" : "No error",
-                type: .query,
-                isDestructive: false,
-                metadata: [
-                    "canRetry": "\(canRetry)",
-                    "errorType": error != nil ? String(describing: type(of: error!)) : ""
-                ]
+                type: .unknown,
+                isDestructive: false
             )
     }
 }
@@ -82,11 +74,7 @@ extension View {
             .awareMetadata(
                 id,
                 description: isProcessing ? "Processing: \(step ?? "In progress")" : "Not processing",
-                type: .mutation,
-                metadata: [
-                    "isProcessing": "\(isProcessing)",
-                    "hasProgress": "\(progress != nil)"
-                ]
+                type: .mutation
             )
     }
 }
@@ -110,12 +98,7 @@ extension View {
             .awareMetadata(
                 id,
                 description: isValid ? "Valid" : "Invalid: \(errors.joined(separator: ", "))",
-                type: .query,
-                metadata: [
-                    "isValid": "\(isValid)",
-                    "hasErrors": "\(!errors.isEmpty)",
-                    "hasWarnings": "\(!warnings.isEmpty)"
-                ]
+                type: .unknown
             )
     }
 }
@@ -139,12 +122,7 @@ extension View {
             .awareMetadata(
                 id,
                 description: "Network: \(isConnected ? "Connected" : "Disconnected")",
-                type: .network,
-                metadata: [
-                    "isConnected": "\(isConnected)",
-                    "isLoading": "\(isLoading)",
-                    "hasError": "\(error != nil)"
-                ]
+                type: .network
             )
     }
 }
@@ -167,11 +145,7 @@ extension View {
             .awareMetadata(
                 id,
                 description: "\(selectedItems.count) of \(totalItems) selected",
-                type: .query,
-                metadata: [
-                    "allowsMultiple": "\(allowsMultipleSelection)",
-                    "selectionPercent": "\(totalItems > 0 ? Int((Double(selectedItems.count) / Double(totalItems)) * 100) : 0)"
-                ]
+                type: .unknown
             )
     }
 }
@@ -193,11 +167,7 @@ extension View {
             .awareMetadata(
                 id,
                 description: isEmpty ? message : "Has content",
-                type: .query,
-                metadata: [
-                    "isEmpty": "\(isEmpty)",
-                    "canAddItems": "\(canAddItems)"
-                ]
+                type: .unknown
             )
     }
 }
@@ -219,11 +189,7 @@ extension View {
             .awareMetadata(
                 id,
                 description: isAuthenticated ? "Authenticated as \(username ?? "user")" : "Not authenticated",
-                type: .query,
-                metadata: [
-                    "isAuthenticated": "\(isAuthenticated)",
-                    "requiresReauth": "\(requiresReauth)"
-                ]
+                type: .unknown
             )
     }
 }
@@ -296,11 +262,11 @@ extension View {
         text: Binding<String>,
         label: String,
         placeholder: String? = nil,
-        isEnabled: Bool = true,
-        isFocused: Binding<Bool>? = nil
+        isEnabled: Bool = true
     ) -> some View {
         self
-            .awareTextField(id, text: text, label: label, isFocused: isFocused ?? .constant(false))
+            .aware(id, label: label)
+            .awareState(id, key: "text", value: text.wrappedValue)
             .awareState(id, key: "placeholder", value: placeholder ?? "")
             .awareState(id, key: "isEnabled", value: isEnabled)
             .awareState(id, key: "characterCount", value: "\(text.wrappedValue.count)")

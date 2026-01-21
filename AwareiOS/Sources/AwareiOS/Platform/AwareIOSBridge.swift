@@ -43,7 +43,10 @@ public final class AwareIPCService {
             transportMode: transportMode,
             webSocketHost: "localhost",
             webSocketPort: 9999,
+            webSocketTimeout: 5.0,
             heartbeatInterval: 2.0,
+            heartbeatEnabled: true,
+            commandPollInterval: 100,
             commandTimeoutAttempts: 50
         )
         self.ipcPath = (ipcPath as NSString).expandingTildeInPath
@@ -221,11 +224,11 @@ public final class AwareIPCService {
 
     public func stopHeartbeat() {
         heartbeatTask?.cancel()
-        heartbeatTask = nil
     }
 
     deinit {
-        stopHeartbeat()
+        // Cancel heartbeat task directly (Task.cancel() is safe from deinit)
+        heartbeatTask?.cancel()
         #if canImport(AwareBridge)
         Task { [webSocketClient] in
             await webSocketClient?.disconnect()

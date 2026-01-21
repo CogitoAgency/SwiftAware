@@ -100,7 +100,7 @@ public struct TestRun: Codable, Identifiable {
 // MARK: - Test Result
 
 /// Result of a single test case
-public struct TestResult: Codable, Identifiable {
+public struct TestResult: Codable, Identifiable, Sendable {
     public let id: String
     public let runId: String
     public let testName: String
@@ -137,7 +137,7 @@ public struct TestResult: Codable, Identifiable {
 // MARK: - Assertion Result
 
 /// Result of a single assertion
-public struct AssertionResult: Codable {
+public struct AssertionResult: Codable, Sendable {
     public let type: String
     public let passed: Bool
     public let expected: String?

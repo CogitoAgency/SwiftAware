@@ -201,9 +201,7 @@ struct UITextFieldModifier: ViewModifier {
         self.label = label
         self.placeholder = placeholder
         self.isFocused = isFocused
-        if let isFocused = isFocused {
-            self._focused = FocusState(initialValue: isFocused.wrappedValue)
-        }
+        self._focused = FocusState()
     }
 
     func body(content: Content) -> some View {

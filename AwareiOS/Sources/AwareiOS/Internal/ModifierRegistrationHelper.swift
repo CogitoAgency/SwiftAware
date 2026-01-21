@@ -8,6 +8,7 @@
 
 #if os(iOS)
 import SwiftUI
+import AwareCore
 
 // MARK: - Modifier Registration Helper
 
