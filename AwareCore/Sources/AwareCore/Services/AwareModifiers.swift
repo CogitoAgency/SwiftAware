@@ -533,7 +533,7 @@ struct AwareLifecycleModifier<Content: View>: View {
                     Aware.shared.registerState(viewId, key: "_lifecycle", value: "appeared")
 
                     #if DEBUG
-                    await AwareLogger.shared.log("[\(viewId)] Appeared (count: \(appearCount))")
+                    await AwareLogger.shared.log(.custom(emoji: "📱", message: "[\(viewId)] Appeared (count: \(appearCount))"))
                     #endif
                 }
             }
@@ -545,7 +545,7 @@ struct AwareLifecycleModifier<Content: View>: View {
                         Aware.shared.registerState(viewId, key: "_lifecycle", value: "disappeared")
 
                         #if DEBUG
-                        await AwareLogger.shared.log("[\(viewId)] Disappeared (duration: \(String(format: "%.2f", duration))s)")
+                        await AwareLogger.shared.log(.custom(emoji: "👋", message: "[\(viewId)] Disappeared (duration: \(String(format: "%.2f", duration))s)"))
                         #endif
                     }
                 }
@@ -634,7 +634,7 @@ struct AwareStateValidationModifier<Content: View>: View {
 
         let timeSinceUpdate = Date().timeIntervalSince(lastUpdate)
 
-        if timeSinceUpdate > expectedFrequency.warningThreshold && expectedFrequency != .static {
+        if timeSinceUpdate > expectedFrequency.warningThreshold && expectedFrequency != .never {
             let warning = """
             [Aware] STATE VALIDATION WARNING:
             View: \(viewId)
@@ -646,7 +646,7 @@ struct AwareStateValidationModifier<Content: View>: View {
             """
             print(warning)
             Task { @MainActor in
-                await AwareLogger.shared.log(warning)
+                await AwareLogger.shared.log(.custom(emoji: "⚠️", message: warning))
             }
         }
     }
