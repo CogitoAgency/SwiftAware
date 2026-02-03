@@ -459,4 +459,196 @@ public extension View {
                 }
             }
     }
+
+    /// Batch state registration - registers multiple state keys at once
+    /// More efficient than chaining multiple `.awareState()` calls
+    ///
+    /// Example:
+    /// ```swift
+    /// .awareStateGroup("songDetail", [
+    ///     "title": song.title,
+    ///     "artist": song.artist,
+    ///     "duration": duration,
+    ///     "isPlaying": isPlaying
+    /// ])
+    /// ```
+    func awareStateGroup(_ viewId: String, _ states: [String: Any]) -> some View {
+        // Register all states immediately to avoid race conditions
+        Task { @MainActor in
+            for (key, value) in states {
+                Aware.shared.registerState(viewId, key: key, value: String(describing: value))
+            }
+        }
+
+        return self
+            .onAppear {
+                MainActor.assumeIsolated {
+                    for (key, value) in states {
+                        Aware.shared.registerState(viewId, key: key, value: String(describing: value))
+                    }
+                }
+            }
+    }
 }
+
+// MARK: - View Lifecycle Tracking
+
+public extension View {
+    /// Track view lifecycle with appear/disappear metrics
+    /// Useful for understanding dynamic content patterns
+    ///
+    /// Tracked metrics:
+    /// - appearCount: Number of times view appeared
+    /// - lastAppearTime: Timestamp of most recent appearance
+    /// - totalVisibleDuration: Cumulative time view was visible
+    ///
+    /// Example:
+    /// ```swift
+    /// SomeView()
+    ///     .awareLifecycle("myView", label: "My View")
+    /// ```
+    func awareLifecycle(_ viewId: String, label: String? = nil) -> some View {
+        AwareLifecycleModifier(viewId: viewId, label: label, content: self)
+    }
+}
+
+/// View modifier that tracks lifecycle metrics
+struct AwareLifecycleModifier<Content: View>: View {
+    let viewId: String
+    let label: String?
+    let content: Content
+
+    @State private var appearTime: Date?
+    @State private var appearCount: Int = 0
+
+    var body: some View {
+        content
+            .onAppear {
+                Task { @MainActor in
+                    appearTime = Date()
+                    appearCount += 1
+
+                    Aware.shared.registerState(viewId, key: "_appearCount", value: String(appearCount))
+                    Aware.shared.registerState(viewId, key: "_lastAppearTime", value: ISO8601DateFormatter().string(from: Date()))
+                    Aware.shared.registerState(viewId, key: "_lifecycle", value: "appeared")
+
+                    #if DEBUG
+                    await AwareLogger.shared.log("[\(viewId)] Appeared (count: \(appearCount))")
+                    #endif
+                }
+            }
+            .onDisappear {
+                Task { @MainActor in
+                    if let appearTime = appearTime {
+                        let duration = Date().timeIntervalSince(appearTime)
+                        Aware.shared.registerState(viewId, key: "_lastVisibleDuration", value: String(format: "%.2f", duration))
+                        Aware.shared.registerState(viewId, key: "_lifecycle", value: "disappeared")
+
+                        #if DEBUG
+                        await AwareLogger.shared.log("[\(viewId)] Disappeared (duration: \(String(format: "%.2f", duration))s)")
+                        #endif
+                    }
+                }
+            }
+    }
+}
+
+// MARK: - State Validation (DEBUG only)
+
+#if DEBUG
+public extension View {
+    /// Development-time validation: warns when state keys are accessed but never updated
+    /// Only active in DEBUG builds
+    ///
+    /// Example:
+    /// ```swift
+    /// .awareState("view", key: "count", value: count)
+    /// .awareValidateState("view", key: "count", expectedUpdateFrequency: .perSecond)
+    /// ```
+    func awareValidateState(
+        _ viewId: String,
+        key: String,
+        expectedUpdateFrequency: StateUpdateFrequency = .perMinute
+    ) -> some View {
+        AwareStateValidationModifier(
+            viewId: viewId,
+            key: key,
+            expectedFrequency: expectedUpdateFrequency,
+            content: self
+        )
+    }
+}
+
+/// Expected update frequency for state validation
+public enum StateUpdateFrequency {
+    case perSecond    // Updates every ~1s (e.g., currentTime in media player)
+    case perFiveSeconds  // Updates every ~5s (e.g., battery level)
+    case perMinute    // Updates every ~60s (e.g., date/time display)
+    case perHour      // Updates every ~3600s (e.g., weather data)
+    case static       // Never updates after initial registration
+
+    var warningThreshold: TimeInterval {
+        switch self {
+        case .perSecond: return 5.0
+        case .perFiveSeconds: return 15.0
+        case .perMinute: return 180.0
+        case .perHour: return 7200.0
+        case .static: return .infinity
+        }
+    }
+}
+
+/// View modifier that validates state update patterns (DEBUG only)
+struct AwareStateValidationModifier<Content: View>: View {
+    let viewId: String
+    let key: String
+    let expectedFrequency: StateUpdateFrequency
+    let content: Content
+
+    @State private var lastUpdateTime: Date?
+    @State private var updateCount: Int = 0
+
+    var body: some View {
+        content
+            .onAppear {
+                Task { @MainActor in
+                    lastUpdateTime = Date()
+                    updateCount = 0
+
+                    // Schedule validation check
+                    DispatchQueue.main.asyncAfter(deadline: .now() + expectedFrequency.warningThreshold) {
+                        validateStateUpdates()
+                    }
+                }
+            }
+            .onChange(of: Aware.shared.stateRegistry[viewId]?[key]) { _, _ in
+                Task { @MainActor in
+                    lastUpdateTime = Date()
+                    updateCount += 1
+                }
+            }
+    }
+
+    private func validateStateUpdates() {
+        guard let lastUpdate = lastUpdateTime else { return }
+
+        let timeSinceUpdate = Date().timeIntervalSince(lastUpdate)
+
+        if timeSinceUpdate > expectedFrequency.warningThreshold && expectedFrequency != .static {
+            let warning = """
+            [Aware] STATE VALIDATION WARNING:
+            View: \(viewId)
+            Key: \(key)
+            Expected frequency: \(expectedFrequency)
+            Last update: \(String(format: "%.1f", timeSinceUpdate))s ago
+            Update count: \(updateCount)
+            Suggestion: State may be stale or not updating as expected
+            """
+            print(warning)
+            Task { @MainActor in
+                await AwareLogger.shared.log(warning)
+            }
+        }
+    }
+}
+#endif
