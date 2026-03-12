@@ -865,7 +865,7 @@ aware_check_wcag              # WCAG 2.1 compliance (A/AA/AAA)
 aware_check_performance       # Performance budget validation
 ```
 
-See `/Users/adrian/Developer/cogito/Cook/CLAUDE.md` for full Breathe ecosystem context.
+See `/Users/adrian/Developer/CogitoAgency/CLAUDE.md` for full Breathe ecosystem context.
 
 ## Key Design Patterns
 
