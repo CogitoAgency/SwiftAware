@@ -35,14 +35,26 @@
 
   <!-- Hexagonal Crystal + Ghost UI motif -->
   <g transform="translate(280, 320)">
-    <circle cx="0" cy="0" r="280" fill="url(#amb)"/>
+    <circle cx="0" cy="0" r="280" fill="url(#amb)">
+      <animate attributeName="r" values="260;300;260" dur="10s" repeatCount="indefinite" />
+    </circle>
     <g transform="scale(1.5)">
-      <polygon points="0,-72 62.4,-36 62.4,36 0,72 -62.4,36 -62.4,-36" fill="url(#h1)" opacity="0.42" stroke="#1a3a22" stroke-width="0.6"/>
-      <polygon points="0,-56 48.5,-28 48.5,28 0,56 -48.5,28 -48.5,-28" fill="url(#h2)" opacity="0.55" stroke="#2d6b3f" stroke-width="0.5"/>
-      <polygon points="0,-40 34.6,-20 34.6,20 0,40 -34.6,20 -34.6,-20" fill="url(#h3)" opacity="0.68" stroke="#5BAD6F" stroke-width="0.4"/>
+      <polygon points="0,-72 62.4,-36 62.4,36 0,72 -62.4,36 -62.4,-36" fill="url(#h1)" opacity="0.42" stroke="#1a3a22" stroke-width="0.6">
+        <animateTransform attributeName="transform" type="rotate" values="0;360" dur="40s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0.35;0.5;0.35" dur="9s" repeatCount="indefinite" />
+      </polygon>
+      <polygon points="0,-56 48.5,-28 48.5,28 0,56 -48.5,28 -48.5,-28" fill="url(#h2)" opacity="0.55" stroke="#2d6b3f" stroke-width="0.5">
+        <animateTransform attributeName="transform" type="rotate" values="15;375" dur="28s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0.48;0.62;0.48" dur="7s" repeatCount="indefinite" />
+      </polygon>
+      <polygon points="0,-40 34.6,-20 34.6,20 0,40 -34.6,20 -34.6,-20" fill="url(#h3)" opacity="0.68" stroke="#5BAD6F" stroke-width="0.4">
+        <animateTransform attributeName="transform" type="rotate" values="30;390" dur="18s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0.6;0.78;0.6" dur="5.5s" repeatCount="indefinite" />
+      </polygon>
       
       <!-- Ghost figure inside crystal -->
       <g transform="scale(1.1) translate(0, 10)">
+        <animateTransform attributeName="transform" type="translate" values="0,10; 0,0; 0,10" dur="4s" repeatCount="indefinite" additive="sum"/>
         <path d="M 0 -40 C -30 -40, -45 -10, -45 15 L -45 50 C -45 55, -40 60, -35 55 L -25 45 L -15 55 L -5 45 L 5 55 L 15 45 L 25 55 L 35 45 L 45 55 C 50 60, 55 55, 55 50 L 55 15 C 55 -10, 30 -40, 0 -40 Z" fill="#e8f0e8" opacity="0.85"/>
         <circle cx="-15" cy="-5" r="5" fill="#050A06"/>
         <circle cx="15" cy="-5" r="5" fill="#050A06"/>
